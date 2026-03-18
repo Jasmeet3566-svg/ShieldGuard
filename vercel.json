@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "public": true,
+  "buildCommand": "npx expo export:web",
+  "outputDirectory": "web-build",
+  "framework": "nextjs",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
