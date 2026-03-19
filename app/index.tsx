@@ -1,26 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Dimensions, Platform, ScrollView, Image } from 'react-native';
-import { Shield, Mail, Lock, Eye, EyeOff, Facebook, Chrome as Google, Smartphone, Globe, ShieldCheck, Activity } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, useWindowDimensions, Platform } from 'react-native';
+import { Shield, Mail, Lock, Eye, EyeOff, Smartphone, Globe, ShieldCheck, Activity } from 'lucide-react-native';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withRepeat, 
-  withTiming, 
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
   Easing,
-  FadeInLeft,
-  FadeInRight 
+  FadeInLeft
 } from 'react-native-reanimated';
 
-const { width, height } = Dimensions.get('window');
-const isWeb = Platform.OS === 'web';
-const IS_LARGE_SCREEN = isWeb && width > 800;
+
 
 export default function LoginScreen() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
-  
-  const { width: windowWidth, height: windowHeight } = Dimensions.get('window');
+
+  const { width: windowWidth } = useWindowDimensions();
   const isLargeScreen = windowWidth > 800 && Platform.OS === 'web';
   const scrollY = useSharedValue(0);
 
@@ -34,8 +32,10 @@ export default function LoginScreen() {
         -1,
         false
       );
+    } else {
+      scrollY.value = 0; // Reset scroll if not large screen
     }
-  }, []);
+  }, [isLargeScreen]);
 
   const animatedScrollStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: scrollY.value }],
@@ -52,7 +52,7 @@ export default function LoginScreen() {
         <Animated.View entering={FadeInLeft.duration(1000)} style={styles.formContainer}>
           <View style={styles.logoRow}>
             <View style={styles.logoDot}>
-               <Shield size={24} color="#f97316" />
+              <Shield size={24} color="#f97316" />
             </View>
             <Text style={styles.logoText}>ShieldGuard</Text>
           </View>
@@ -66,8 +66,8 @@ export default function LoginScreen() {
             <Text style={styles.label}>Email</Text>
             <View style={styles.inputWrapper}>
               <Mail size={18} color="#94a3b8" style={styles.inputIcon} />
-              <TextInput 
-                placeholder="guard.id@shieldguard.com" 
+              <TextInput
+                placeholder="guard.id@shieldguard.com"
                 style={styles.input}
                 placeholderTextColor="#94a3b8"
               />
@@ -81,9 +81,9 @@ export default function LoginScreen() {
             </View>
             <View style={styles.inputWrapper}>
               <Lock size={18} color="#94a3b8" style={styles.inputIcon} />
-              <TextInput 
-                placeholder="••••••••" 
-                secureTextEntry={!showPassword} 
+              <TextInput
+                placeholder="••••••••"
+                secureTextEntry={!showPassword}
                 style={styles.input}
                 placeholderTextColor="#94a3b8"
               />
@@ -104,8 +104,8 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.socialButtons}>
-            <SocialButton icon={<Google size={20} color="#000" />} label="Continue with Google" />
-            <SocialButton icon={<Facebook size={20} color="#1877F2" />} label="Continue with Facebook" />
+            <SocialButton icon={<FontAwesome5 name="google" size={20} color="#000" />} label="Continue with Google" />
+            <SocialButton icon={<FontAwesome5 name="facebook" size={20} color="#1877F2" />} label="Continue with Facebook" />
           </View>
 
           <View style={styles.footer}>

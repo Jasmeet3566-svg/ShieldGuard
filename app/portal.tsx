@@ -20,58 +20,58 @@ export default function PortalScreen() {
       {/* Sidebar - Desktop or Mobile Drawer */}
       {(isDesktop || isSidebarOpen) && (
         <View style={[styles.sidebar, !isDesktop && styles.mobileSidebar]}>
-           {/* Overlay for mobile */}
-           {!isDesktop && (
-             <TouchableOpacity 
-               style={styles.overlay} 
-               activeOpacity={1} 
-               onPress={() => setIsSidebarOpen(false)} 
-             />
-           )}
-          
+          {/* Overlay for mobile */}
+          {!isDesktop && (
+            <TouchableOpacity
+              style={styles.overlay}
+              activeOpacity={1}
+              onPress={() => setIsSidebarOpen(false)}
+            />
+          )}
+
           <View style={styles.sidebarContent}>
             <View style={styles.sidebarHeader}>
               <ShieldAlert color="#7c3aed" size={32} />
               <Text style={styles.brandName}>ShieldGuard</Text>
             </View>
-            
+
             <View style={styles.navItems}>
-              <NavItem 
-                icon={<LayoutDashboard size={20} />} 
-                label="Dashboard" 
-                active={activeTab === 'Dashboard'} 
-                onPress={() => { setActiveTab('Dashboard'); if(!isDesktop) setIsSidebarOpen(false); }} 
+              <NavItem
+                icon={<LayoutDashboard size={20} />}
+                label="Dashboard"
+                active={activeTab === 'Dashboard'}
+                onPress={() => { setActiveTab('Dashboard'); if (!isDesktop) setIsSidebarOpen(false); }}
               />
-              <NavItem 
-                icon={<Users size={20} />} 
-                label="Guards" 
-                active={activeTab === 'Guards'} 
-                onPress={() => { setActiveTab('Guards'); if(!isDesktop) setIsSidebarOpen(false); }} 
+              <NavItem
+                icon={<Users size={20} />}
+                label="Guards"
+                active={activeTab === 'Guards'}
+                onPress={() => { setActiveTab('Guards'); if (!isDesktop) setIsSidebarOpen(false); }}
               />
-              <NavItem 
-                icon={<Bell size={20} />} 
-                label="Alerts" 
-                active={activeTab === 'Alerts'} 
-                onPress={() => { setActiveTab('Alerts'); if(!isDesktop) setIsSidebarOpen(false); }} 
+              <NavItem
+                icon={<Bell size={20} />}
+                label="Alerts"
+                active={activeTab === 'Alerts'}
+                onPress={() => { setActiveTab('Alerts'); if (!isDesktop) setIsSidebarOpen(false); }}
               />
-              <NavItem 
-                icon={<Settings size={20} />} 
-                label="Settings" 
-                active={activeTab === 'Settings'} 
-                onPress={() => { setActiveTab('Settings'); if(!isDesktop) setIsSidebarOpen(false); }} 
+              <NavItem
+                icon={<Settings size={20} />}
+                label="Settings"
+                active={activeTab === 'Settings'}
+                onPress={() => { setActiveTab('Settings'); if (!isDesktop) setIsSidebarOpen(false); }}
               />
             </View>
 
             <View style={styles.sidebarFooter}>
-               <View style={styles.userProfile}>
-                  <View style={styles.avatar}>
-                      <User size={20} color="#64748b" />
-                  </View>
-                  <View>
-                      <Text style={styles.userName}>Admin User</Text>
-                      <Text style={styles.userRole}>Super Admin</Text>
-                  </View>
-               </View>
+              <View style={styles.userProfile}>
+                <View style={styles.avatar}>
+                  <User size={20} color="#64748b" />
+                </View>
+                <View>
+                  <Text style={styles.userName}>Admin User</Text>
+                  <Text style={styles.userRole}>Super Admin</Text>
+                </View>
+              </View>
             </View>
           </View>
         </View>
@@ -80,62 +80,62 @@ export default function PortalScreen() {
       {/* Main Content */}
       <View style={styles.mainContent}>
         <View style={styles.header}>
-            <View style={styles.headerLeft}>
-                {!isDesktop && (
-                  <TouchableOpacity style={styles.menuBtn} onPress={toggleSidebar}>
-                    <Menu size={24} color="#64748b" />
-                  </TouchableOpacity>
-                )}
-                <Text style={styles.headerTitle} numberOfLines={1}>{activeTab}</Text>
-            </View>
-            <View style={styles.headerRight}>
-                {isDesktop && (
-                  <View style={styles.searchBar}>
-                      <Search size={18} color="#94a3b8" />
-                      <Text style={styles.placeholderText}>Search dashboard...</Text>
-                  </View>
-                )}
-                <TouchableOpacity style={styles.notificationBtn}>
-                    <Bell size={20} color="#64748b" />
-                    <View style={styles.badge} />
-                </TouchableOpacity>
-            </View>
+          <View style={styles.headerLeft}>
+            {!isDesktop && (
+              <TouchableOpacity style={styles.menuBtn} onPress={toggleSidebar}>
+                <Menu size={24} color="#64748b" />
+              </TouchableOpacity>
+            )}
+            <Text style={styles.headerTitle} numberOfLines={1}>{activeTab}</Text>
+          </View>
+          <View style={styles.headerRight}>
+            {isDesktop && (
+              <View style={styles.searchBar}>
+                <Search size={18} color="#94a3b8" />
+                <Text style={styles.placeholderText}>Search dashboard...</Text>
+              </View>
+            )}
+            <TouchableOpacity style={styles.notificationBtn}>
+              <Bell size={20} color="#64748b" />
+              <View style={styles.badge} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollArea}>
-            <View style={styles.statsGrid}>
-                <StatCard label="Total Guards" value="1,284" trend="+12.5%" icon={<Users color="#7c3aed" />} color="#f5f3ff" />
-                <StatCard label="Active Now" value="842" trend="+5.2%" icon={<CheckCircle color="#10b981" />} color="#f0fdf4" />
-                <StatCard label="Critical Alerts" value="12" trend="-2.4%" icon={<ShieldAlert color="#ef4444" />} color="#fef2f2" />
-                <StatCard label="Reports Today" value="156" trend="+18.8%" icon={<LayoutDashboard color="#3b82f6" />} color="#eff6ff" />
+          <View style={styles.statsGrid}>
+            <StatCard label="Total Guards" value="1,284" trend="+12.5%" icon={<Users color="#7c3aed" />} color="#f5f3ff" />
+            <StatCard label="Active Now" value="842" trend="+5.2%" icon={<CheckCircle color="#10b981" />} color="#f0fdf4" />
+            <StatCard label="Critical Alerts" value="12" trend="-2.4%" icon={<ShieldAlert color="#ef4444" />} color="#fef2f2" />
+            <StatCard label="Reports Today" value="156" trend="+18.8%" icon={<LayoutDashboard color="#3b82f6" />} color="#eff6ff" />
+          </View>
+
+          <View style={styles.contentLayout}>
+            <View style={styles.tableSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Recent Incidents</Text>
+                <TouchableOpacity><Text style={styles.viewAll}>View All</Text></TouchableOpacity>
+              </View>
+
+              <View style={styles.table}>
+                <TableHeader />
+                <TableRow id="#728" guard="John Smith" location="Sector 4" status="Critical" time="2 min ago" />
+                <TableRow id="#729" guard="Sarah Connor" location="Entry A" status="Cleared" time="15 min ago" />
+                <TableRow id="#730" guard="Mike Tyson" location="Warehouse" status="Pending" time="45 min ago" />
+                <TableRow id="#731" guard="Linda Evans" location="Sector 2" status="Critical" time="1 hr ago" />
+              </View>
             </View>
 
-            <View style={styles.contentLayout}>
-                <View style={styles.tableSection}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>Recent Incidents</Text>
-                        <TouchableOpacity><Text style={styles.viewAll}>View All</Text></TouchableOpacity>
-                    </View>
-                    
-                    <View style={styles.table}>
-                        <TableHeader />
-                        <TableRow id="#728" guard="John Smith" location="Sector 4" status="Critical" time="2 min ago" />
-                        <TableRow id="#729" guard="Sarah Connor" location="Entry A" status="Cleared" time="15 min ago" />
-                        <TableRow id="#730" guard="Mike Tyson" location="Warehouse" status="Pending" time="45 min ago" />
-                        <TableRow id="#731" guard="Linda Evans" location="Sector 2" status="Critical" time="1 hr ago" />
-                    </View>
-                </View>
-
-                {isWeb && (
-                    <View style={styles.notifPanel}>
-                        <Text style={styles.sectionTitle}>Live Activity</Text>
-                        <NotificationItem sender="Isaiah Rivera" msg="started shift at Station B" time="2min ago" />
-                        <NotificationItem sender="Samuel Young" msg="reported suspicious activity" time="20min ago" />
-                        <NotificationItem sender="Christian Brooks" msg="completed checklist" time="1hr ago" />
-                        <NotificationItem sender="Levi Collins" msg="requested break" time="2hr ago" />
-                    </View>
-                )}
-            </View>
+            {isWeb && (
+              <View style={styles.notifPanel}>
+                <Text style={styles.sectionTitle}>Live Activity</Text>
+                <NotificationItem sender="Isaiah Rivera" msg="started shift at Station B" time="2min ago" />
+                <NotificationItem sender="Samuel Young" msg="reported suspicious activity" time="20min ago" />
+                <NotificationItem sender="Christian Brooks" msg="completed checklist" time="1hr ago" />
+                <NotificationItem sender="Levi Collins" msg="requested break" time="2hr ago" />
+              </View>
+            )}
+          </View>
         </ScrollView>
       </View>
     </View>
@@ -144,9 +144,9 @@ export default function PortalScreen() {
 
 function NavItem({ icon, label, active, onPress }: any) {
   return (
-    <TouchableOpacity 
-        style={[styles.navItem, active && styles.navItemActive]} 
-        onPress={onPress}
+    <TouchableOpacity
+      style={[styles.navItem, active && styles.navItemActive]}
+      onPress={onPress}
     >
       <View style={[styles.navIcon, active && styles.navIconActive]}>{icon}</View>
       <Text style={[styles.navLabel, active && styles.navLabelActive]}>{label}</Text>
@@ -155,66 +155,66 @@ function NavItem({ icon, label, active, onPress }: any) {
 }
 
 function StatCard({ label, value, trend, icon, color }: any) {
-    return (
-        <Animated.View entering={FadeInRight.delay(200).duration(800)} style={styles.statCard}>
-            <View style={[styles.statIconContainer, { backgroundColor: color }]}>
-                {icon}
-            </View>
-            <View style={styles.statInfo}>
-                <Text style={styles.statLabel}>{label}</Text>
-                <View style={styles.statValueRow}>
-                    <Text style={styles.statValue}>{value}</Text>
-                    <Text style={[styles.statTrend, { color: trend.startsWith('+') ? '#10b981' : '#ef4444' }]}>
-                        {trend}
-                    </Text>
-                </View>
-            </View>
-        </Animated.View>
-    );
+  return (
+    <Animated.View entering={FadeInRight.delay(200).duration(800)} style={styles.statCard}>
+      <View style={[styles.statIconContainer, { backgroundColor: color }]}>
+        {icon}
+      </View>
+      <View style={styles.statInfo}>
+        <Text style={styles.statLabel}>{label}</Text>
+        <View style={styles.statValueRow}>
+          <Text style={styles.statValue}>{value}</Text>
+          <Text style={[styles.statTrend, { color: trend.startsWith('+') ? '#10b981' : '#ef4444' }]}>
+            {trend}
+          </Text>
+        </View>
+      </View>
+    </Animated.View>
+  );
 }
 
 function TableHeader() {
-    return (
-        <View style={styles.tableHeader}>
-            <Text style={[styles.headerCell, { flex: 0.5 }]}>ID</Text>
-            <Text style={styles.headerCell}>Guard Name</Text>
-            <Text style={styles.headerCell}>Location</Text>
-            <Text style={styles.headerCell}>Status</Text>
-            <Text style={styles.headerCell}>Time</Text>
-        </View>
-    );
+  return (
+    <View style={styles.tableHeader}>
+      <Text style={[styles.headerCell, { flex: 0.5 }]}>ID</Text>
+      <Text style={styles.headerCell}>Guard Name</Text>
+      <Text style={styles.headerCell}>Location</Text>
+      <Text style={styles.headerCell}>Status</Text>
+      <Text style={styles.headerCell}>Time</Text>
+    </View>
+  );
 }
 
 function TableRow({ id, guard, location, status, time }: any) {
-    const statusColor = status === 'Critical' ? '#ef4444' : status === 'Cleared' ? '#10b981' : '#f59e0b';
-    const statusBg = status === 'Critical' ? '#fef2f2' : status === 'Cleared' ? '#f0fdf4' : '#fffbeb';
+  const statusColor = status === 'Critical' ? '#ef4444' : status === 'Cleared' ? '#10b981' : '#f59e0b';
+  const statusBg = status === 'Critical' ? '#fef2f2' : status === 'Cleared' ? '#f0fdf4' : '#fffbeb';
 
-    return (
-        <View style={styles.tableRow}>
-            <Text style={[styles.cellText, { flex: 0.5, color: '#94a3b8' }]}>{id}</Text>
-            <View style={styles.cellContainer}>
-                <View style={styles.smallAvatar} />
-                <Text style={styles.cellTextBold}>{guard}</Text>
-            </View>
-            <Text style={styles.cellText}>{location}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
-                <Text style={[styles.statusText, { color: statusColor }]}>{status}</Text>
-            </View>
-            <Text style={styles.cellText}>{time}</Text>
-        </View>
-    );
+  return (
+    <View style={styles.tableRow}>
+      <Text style={[styles.cellText, { flex: 0.5, color: '#94a3b8' }]}>{id}</Text>
+      <View style={styles.cellContainer}>
+        <View style={styles.smallAvatar} />
+        <Text style={styles.cellTextBold}>{guard}</Text>
+      </View>
+      <Text style={styles.cellText}>{location}</Text>
+      <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
+        <Text style={[styles.statusText, { color: statusColor }]}>{status}</Text>
+      </View>
+      <Text style={styles.cellText}>{time}</Text>
+    </View>
+  );
 }
 
 function NotificationItem({ sender, msg, time }: any) {
-    return (
-        <View style={styles.notifItem}>
-            <View style={styles.notifAvatar} />
-            <View style={styles.notifContent}>
-                <Text style={styles.notifTitle} numberOfLines={1}><Text style={styles.bold}>{sender}</Text> {msg}</Text>
-                <Text style={styles.notifTime}>{time}</Text>
-            </View>
-        </View>
-    );
+  return (
+    <View style={styles.notifItem}>
+      <View style={styles.notifAvatar} />
+      <View style={styles.notifContent}>
+        <Text style={styles.notifTitle} numberOfLines={1}><Text style={styles.bold}>{sender}</Text> {msg}</Text>
+        <Text style={styles.notifTime}>{time}</Text>
+      </View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
