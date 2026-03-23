@@ -1,19 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, useWindowDimensions, Platform, Modal, ScrollView } from 'react-native';
-import { Shield, Mail, Lock, Eye, EyeOff, Smartphone, Globe, ShieldCheck, Activity, XCircle, Building2, User, Phone } from 'lucide-react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import API from './client';
+import { Activity, Building2, Eye, EyeOff, Globe, Lock, Mail, Phone, Shield, ShieldCheck, Smartphone, User, XCircle } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import { Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useAuth } from './AuthContext';
+import API from './client';
 //import { Platform } from 'react-native';
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  Easing,
-  FadeInLeft
+    Easing,
+    FadeInLeft,
+    useAnimatedStyle,
+    useSharedValue,
+    withRepeat,
+    withTiming
 } from 'react-native-reanimated';
 
 
@@ -117,7 +116,7 @@ export default function LoginScreen() {
 
       console.log("RESPONSE DATA:", res.data);
 
-      await login(res.data);
+      await login({ ...res.data, companyCode: loginData.companyCode });
 
       router.replace('/portal');
 

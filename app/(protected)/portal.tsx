@@ -1,17 +1,44 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 import { useRouter } from 'expo-router';
 import {
-  StyleSheet, View, Text, ScrollView, TouchableOpacity,
-  Dimensions, Modal, TextInput, Platform
-} from 'react-native';
-import {
-  Shield, LayoutDashboard, Users, Bell, Settings, User,
-  ShieldCheck, CheckCircle, ShieldAlert, MapPin, Search,
-  Menu, ChevronRight, Plus, UserPlus, Edit3, XCircle
+  Bell,
+  CheckCircle,
+  ChevronRight,
+  Edit3,
+  LayoutDashboard,
+  MapPin,
+  Menu,
+  Minus,
+  Package,
+  PanelLeft,
+  Plus,
+  Search,
+  Settings,
+  ShieldAlert,
+  ShieldCheck,
+  Store,
+  User,
+  UserPlus,
+  Users,
+  XCircle
 } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Dimensions, Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
 import Animated, { FadeInRight } from 'react-native-reanimated';
+import AddVendorStepper, { VendorFormData } from '../../components/AddVendorStepper';
+import { useAuth } from '../AuthContext';
+import API from '../client';
 
 const { width } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
@@ -25,8 +52,11 @@ export default function PortalScreen() {
   const [isDetailsVisible, setIsDetailsVisible] = useState(false);
   const [selectedGuard, setSelectedGuard] = useState<any>(null);
   const [editingGuard, setEditingGuard] = useState<any>(null);
+  const [usersExpanded, setUsersExpanded] = useState(false);
+  const [employeesExpanded, setEmployeesExpanded] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  const [guards, setGuards] = useState([
+  const [employees, setEmployees] = useState([
     { id: 'GD-1024', name: 'John Smith', station: 'Sector 4', status: 'On Duty', joined: 'Mar 2026', fullName: 'John Smith', assignedSite: 'Sector 4' },
     { id: 'GD-1025', name: 'Sarah Connor', station: 'Entry A', status: 'On Break', joined: 'Feb 2026', fullName: 'Sarah Connor', assignedSite: 'Entry A' },
     { id: 'GD-1026', name: 'Mike Tyson', station: 'Warehouse', status: 'On Duty', joined: 'Jan 2026', fullName: 'Mike Tyson', assignedSite: 'Warehouse' },
@@ -36,8 +66,9 @@ export default function PortalScreen() {
   const isDesktop = windowWidth > 1024;
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const router = useRouter();
+  const [showLogout, setShowLogout] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -50,30 +81,125 @@ export default function PortalScreen() {
   return (
     <View style={styles.container}>
       {(isDesktop || isSidebarOpen) && (
-        <View style={[styles.sidebar, !isDesktop && styles.mobileSidebar]}>
+        <View style={[styles.sidebar, isSidebarCollapsed && styles.sidebarCollapsed, !isDesktop && styles.mobileSidebar]}>
           {!isDesktop && (
             <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setIsSidebarOpen(false)} />
           )}
-          <View style={styles.sidebarContent}>
-            <View style={styles.sidebarHeader}>
-              <ShieldAlert color="#7c3aed" size={32} />
-              <Text style={styles.brandName}>ShieldGuard</Text>
+          <View style={[styles.sidebarContent, isSidebarCollapsed && styles.sidebarContentCollapsed]}>
+
+            {/* ── Header ── */}
+            <View style={[styles.sidebarHeader, isSidebarCollapsed && styles.sidebarHeaderCollapsed]}>
+              <ShieldAlert color="#7c3aed" size={22} />
+              {!isSidebarCollapsed && <Text style={styles.brandName}>ShieldGuard</Text>}
+              <TouchableOpacity
+                style={[styles.collapseSidebarBtn, isSidebarCollapsed && { marginLeft: 0 }]}
+                onPress={() => setIsSidebarCollapsed(prev => !prev)}
+                activeOpacity={0.7}>
+                <PanelLeft size={16} color={isSidebarCollapsed ? '#7c3aed' : '#9ca3af'} />
+              </TouchableOpacity>
             </View>
+
+            {/* ── Nav ── */}
             <View style={styles.navItems}>
-              <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard" active={activeTab === 'Dashboard'} onPress={() => { setActiveTab('Dashboard'); if (!isDesktop) setIsSidebarOpen(false); }} />
-              <NavItem icon={<Users size={20} />} label="Guards" active={activeTab === 'Guards'} onPress={() => { setActiveTab('Guards'); if (!isDesktop) setIsSidebarOpen(false); }} />
-              <NavItem icon={<Bell size={20} />} label="Alerts" active={activeTab === 'Alerts'} onPress={() => { setActiveTab('Alerts'); if (!isDesktop) setIsSidebarOpen(false); }} />
-              <NavItem icon={<Settings size={20} />} label="Settings" active={activeTab === 'Settings'} onPress={() => { setActiveTab('Settings'); if (!isDesktop) setIsSidebarOpen(false); }} />
+              <NavItem icon={<LayoutDashboard size={16} />} label="Dashboard" active={activeTab === 'Dashboard'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Dashboard'); if (!isDesktop) setIsSidebarOpen(false); }} />
+              <NavItem icon={<Bell size={16} />} label="Alerts" active={activeTab === 'Alerts'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Alerts'); if (!isDesktop) setIsSidebarOpen(false); }} />
+              <NavItem icon={<Settings size={16} />} label="Settings" active={activeTab === 'Settings'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Settings'); if (!isDesktop) setIsSidebarOpen(false); }} />
+              <NavItem icon={<Store size={16} />} label="Vendor" active={activeTab === 'Vendor'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Vendor'); if (!isDesktop) setIsSidebarOpen(false); }} />
+              <NavItem icon={<Package size={16} />} label="Stocks" active={activeTab === 'Stocks'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Stocks'); if (!isDesktop) setIsSidebarOpen(false); }} />
+
+              {/* Expandable Employees group */}
+              {isSidebarCollapsed ? (
+                <TouchableOpacity
+                  style={[styles.navItem, styles.navItemCollapsed, (activeTab === 'Create Employee' || activeTab === 'Employees List') && styles.navItemActive]}
+                  onPress={() => { setIsSidebarCollapsed(false); setEmployeesExpanded(true); }}
+                  activeOpacity={0.7}>
+                  <Users size={16} color={(activeTab === 'Create Employee' || activeTab === 'Employees List') ? '#111827' : '#6b7280'} />
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <TouchableOpacity style={styles.navGroupRow} onPress={() => setEmployeesExpanded(prev => !prev)} activeOpacity={0.7}>
+                    <View style={styles.navIcon}><Users size={16} color="#6b7280" /></View>
+                    <Text style={styles.navGroupLabel}>Employees</Text>
+                    {employeesExpanded ? <Minus size={14} color="#9ca3af" /> : <Plus size={14} color="#9ca3af" />}
+                  </TouchableOpacity>
+                  {employeesExpanded && (
+                    <View style={styles.subNavItems}>
+                      <TouchableOpacity style={[styles.subNavItem, activeTab === 'Create Employee' && styles.subNavItemActive]} onPress={() => { setActiveTab('Create Employee'); if (!isDesktop) setIsSidebarOpen(false); }}>
+                        <Text style={[styles.subNavLabel, activeTab === 'Create Employee' && styles.subNavLabelActive]}>Create Employee</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.subNavItem, activeTab === 'Employees List' && styles.subNavItemActive]} onPress={() => { setActiveTab('Employees List'); if (!isDesktop) setIsSidebarOpen(false); }}>
+                        <Text style={[styles.subNavLabel, activeTab === 'Employees List' && styles.subNavLabelActive]}>Employees</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </>
+              )}
+
+              {/* Expandable Users group */}
+              {isSidebarCollapsed ? (
+                <TouchableOpacity
+                  style={[styles.navItem, styles.navItemCollapsed, (activeTab === 'Create User' || activeTab === 'Users List') && styles.navItemActive]}
+                  onPress={() => { setIsSidebarCollapsed(false); setUsersExpanded(true); }}
+                  activeOpacity={0.7}>
+                  <UserPlus size={16} color={(activeTab === 'Create User' || activeTab === 'Users List') ? '#111827' : '#6b7280'} />
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <TouchableOpacity style={styles.navGroupRow} onPress={() => setUsersExpanded(prev => !prev)} activeOpacity={0.7}>
+                    <View style={styles.navIcon}><UserPlus size={16} color="#6b7280" /></View>
+                    <Text style={styles.navGroupLabel}>Users</Text>
+                    {usersExpanded ? <Minus size={14} color="#9ca3af" /> : <Plus size={14} color="#9ca3af" />}
+                  </TouchableOpacity>
+                  {usersExpanded && (
+                    <View style={styles.subNavItems}>
+                      <TouchableOpacity style={[styles.subNavItem, activeTab === 'Create User' && styles.subNavItemActive]} onPress={() => { setActiveTab('Create User'); if (!isDesktop) setIsSidebarOpen(false); }}>
+                        <Text style={[styles.subNavLabel, activeTab === 'Create User' && styles.subNavLabelActive]}>Create User</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.subNavItem, activeTab === 'Users List' && styles.subNavItemActive]} onPress={() => { setActiveTab('Users List'); if (!isDesktop) setIsSidebarOpen(false); }}>
+                        <Text style={[styles.subNavLabel, activeTab === 'Users List' && styles.subNavLabelActive]}>Users</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </>
+              )}
             </View>
-            <View style={styles.sidebarFooter}>
-              <View style={styles.userProfile}>
-                <View style={styles.avatar}><User size={20} color="#64748b" /></View>
-                <View>
-                  <Text style={styles.userName}>Admin User</Text>
-                  <Text style={styles.userRole}>Super Admin</Text>
+
+            {/* ── Footer ── */}
+            <View style={[styles.sidebarFooter, isSidebarCollapsed && styles.sidebarFooterCollapsed]}>
+              {showLogout && (
+                isSidebarCollapsed ? (
+                  <TouchableOpacity
+                    style={styles.logoutIconBtn}
+                    onPress={async () => { setShowLogout(false); await logout(); }}
+                    activeOpacity={0.85}>
+                    <XCircle size={18} color="#ef4444" />
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.logoutPopover}
+                    onPress={async () => { setShowLogout(false); await logout(); }}
+                    activeOpacity={0.85}>
+                    <XCircle size={14} color="#ef4444" />
+                    <Text style={styles.logoutPopoverText}>Logout</Text>
+                  </TouchableOpacity>
+                )
+              )}
+              <TouchableOpacity
+                style={[styles.userProfile, isSidebarCollapsed && styles.userProfileCollapsed]}
+                onPress={() => setShowLogout(prev => !prev)}
+                activeOpacity={0.8}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarInitial}>{(user?.email?.[0] ?? 'A').toUpperCase()}</Text>
                 </View>
-              </View>
+                {!isSidebarCollapsed && (
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.userName} numberOfLines={1}>{user?.email ?? 'Admin User'}</Text>
+                    <Text style={styles.userRole}>{user?.userType ?? 'Super Admin'}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             </View>
+
           </View>
         </View>
       )}
@@ -106,7 +232,7 @@ export default function PortalScreen() {
           {activeTab === 'Dashboard' ? (
             <>
               <View style={styles.statsGrid}>
-                <StatCard label="Total Guards" value={guards.length.toString()} trend="+12.5%" icon={<Users color="#7c3aed" />} color="#f5f3ff" />
+                <StatCard label="Total Employees" value={employees.length.toString()} trend="+12.5%" icon={<Users color="#7c3aed" />} color="#f5f3ff" />
                 <StatCard label="Active Now" value="842" trend="+5.2%" icon={<CheckCircle color="#10b981" />} color="#f0fdf4" />
                 <StatCard label="Critical Alerts" value="12" trend="-2.4%" icon={<ShieldAlert color="#ef4444" />} color="#fef2f2" />
                 <StatCard label="Reports Today" value="156" trend="+18.8%" icon={<LayoutDashboard color="#3b82f6" />} color="#eff6ff" />
@@ -134,12 +260,22 @@ export default function PortalScreen() {
                 )}
               </View>
             </>
-          ) : activeTab === 'Guards' ? (
-            <GuardsView
-              guards={guards}
+          ) : activeTab === 'Create Employee' ? (
+            <EmployeesView
+              employees={employees}
               onAddPress={() => { setEditingGuard(null); setIsModalVisible(true); }}
               onViewDetails={(guard: any) => { setSelectedGuard(guard); setIsDetailsVisible(true); }}
             />
+          ) : activeTab === 'Employees List' ? (
+            <EmployeesListView />
+          ) : activeTab === 'Create User' ? (
+            <CreateUserView />
+          ) : activeTab === 'Users List' ? (
+            <UsersListView companyCode={user?.companyCode} />
+          ) : activeTab === 'Vendor' ? (
+            <VendorView />
+          ) : activeTab === 'Stocks' ? (
+            <StocksView />
           ) : (
             <View style={styles.placeholderContainer}>
               <Text style={styles.placeholderText}>This {activeTab} section is coming soon!</Text>
@@ -153,10 +289,10 @@ export default function PortalScreen() {
           onClose={() => { setIsModalVisible(false); setEditingGuard(null); }}
           onAdd={(guardData: any) => {
             if (editingGuard) {
-              setGuards(guards.map(g => g.id === editingGuard.id ? { ...g, ...guardData, name: guardData.fullName, station: guardData.assignedSite } : g));
+              setEmployees(employees.map(g => g.id === editingGuard.id ? { ...g, ...guardData, name: guardData.fullName, station: guardData.assignedSite } : g));
             } else {
               const id = `GD-${Math.floor(1000 + Math.random() * 9000)}`;
-              setGuards([...guards, { id, ...guardData, name: guardData.fullName, station: guardData.assignedSite || 'Unassigned', status: 'On Duty', joined: 'Mar 2026' }]);
+              setEmployees([...employees, { id, ...guardData, name: guardData.fullName, station: guardData.assignedSite || 'Unassigned', status: 'On Duty', joined: 'Mar 2026' }]);
             }
             setIsModalVisible(false);
             setEditingGuard(null);
@@ -178,8 +314,8 @@ export default function PortalScreen() {
 
 function NavItem({ icon, label, active, onPress }: any) {
   return (
-    <TouchableOpacity style={[styles.navItem, active && styles.navItemActive]} onPress={onPress}>
-      <View style={[styles.navIcon, active && styles.navIconActive]}>{icon}</View>
+    <TouchableOpacity style={[styles.navItem, active && styles.navItemActive]} onPress={onPress} activeOpacity={0.7}>
+      <View style={styles.navIcon}>{React.cloneElement(icon, { color: active ? '#111827' : '#6b7280' })}</View>
       <Text style={[styles.navLabel, active && styles.navLabelActive]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -238,38 +374,38 @@ function NotificationItem({ sender, msg, time }: any) {
   );
 }
 
-function GuardsView({ guards, onAddPress, onViewDetails }: { guards: any[], onAddPress: () => void, onViewDetails: (guard: any) => void }) {
+function EmployeesView({ employees, onAddPress, onViewDetails }: { employees: any[], onAddPress: () => void, onViewDetails: (guard: any) => void }) {
   return (
-    <View style={styles.guardsView}>
-      <View style={styles.guardsHeader}>
+    <View style={styles.employeesView}>
+      <View style={styles.employeesHeader}>
         <View>
-          <Text style={styles.guardsTitle}>Guard Roster</Text>
-          <Text style={styles.guardsSubtitle}>Manage and monitor your security team.</Text>
+          <Text style={styles.employeesTitle}>Employee Roster</Text>
+          <Text style={styles.employeesSubtitle}>Manage and monitor your security team.</Text>
         </View>
-        <TouchableOpacity style={styles.addGuardBtn} onPress={onAddPress}>
+        <TouchableOpacity style={styles.addEmployeeBtn} onPress={onAddPress}>
           <UserPlus size={20} color="#fff" />
-          <Text style={styles.addGuardBtnText}>Register Guard</Text>
+          <Text style={styles.addEmployeeBtnText}>Register Employee</Text>
         </TouchableOpacity>
       </View>
-      <ScrollView contentContainerStyle={styles.guardsGrid}>
-        {guards.map((guard: any) => (
-          <View key={guard.id} style={styles.guardCard}>
-            <View style={styles.guardCardTop}>
-              <View style={styles.guardAvatar}><User size={24} color="#7c3aed" /></View>
-              <View style={styles.guardStatus}>
+      <ScrollView contentContainerStyle={styles.employeesGrid}>
+        {employees.map((guard: any) => (
+          <View key={guard.id} style={styles.employeeCard}>
+            <View style={styles.employeeCardTop}>
+              <View style={styles.employeeAvatar}><User size={24} color="#7c3aed" /></View>
+              <View style={styles.employeeStatus}>
                 <View style={[styles.statusDot, { backgroundColor: guard.status === 'On Duty' ? '#10b981' : '#f59e0b' }]} />
-                <Text style={styles.guardStatusText}>{guard.status}</Text>
+                <Text style={styles.employeeStatusText}>{guard.status}</Text>
               </View>
             </View>
-            <View style={styles.guardCardBody}>
-              <Text style={styles.guardName}>{guard.name}</Text>
-              <Text style={styles.guardId}>{guard.id}</Text>
-              <View style={styles.guardDetailRow}><MapPin size={14} color="#94a3b8" /><Text style={styles.guardDetailText}>{guard.station}</Text></View>
-              <View style={styles.guardDetailRow}><ShieldCheck size={14} color="#94a3b8" /><Text style={styles.guardDetailText}>Joined {guard.joined}</Text></View>
+            <View style={styles.employeeCardBody}>
+              <Text style={styles.employeeName}>{guard.name}</Text>
+              <Text style={styles.employeeId}>{guard.id}</Text>
+              <View style={styles.employeeDetailRow}><MapPin size={14} color="#94a3b8" /><Text style={styles.employeeDetailText}>{guard.station}</Text></View>
+              <View style={styles.employeeDetailRow}><ShieldCheck size={14} color="#94a3b8" /><Text style={styles.employeeDetailText}>Joined {guard.joined}</Text></View>
             </View>
-            <View style={styles.guardCardFooter}>
-              <TouchableOpacity style={styles.guardActionBtn} onPress={() => onViewDetails(guard)}>
-                <Text style={styles.guardActionText}>View Profile</Text>
+            <View style={styles.employeeCardFooter}>
+              <TouchableOpacity style={styles.employeeActionBtn} onPress={() => onViewDetails(guard)}>
+                <Text style={styles.employeeActionText}>View Profile</Text>
                 <ChevronRight size={16} color="#7c3aed" />
               </TouchableOpacity>
             </View>
@@ -314,6 +450,7 @@ function FormInput({ label, value, onChange, placeholder, editable = true }: any
 function CreateGuardModal({ visible, onClose, onAdd, initialData }: { visible: boolean, onClose: () => void, onAdd: (data: any) => void, initialData?: any }) {
   const blankForm = {
     fullName: '', dob: '', gender: '', nationality: '', email: '', phone: '', role: 'Guard', bloodGroup: '', maritalStatus: '',
+    designation: '', grade: '',
     currentAddress: { street: '', city: '', state: '', postalCode: '', country: '' },
     permanentAddress: { street: '', city: '', state: '', postalCode: '', country: '' },
     sameAsCurrent: false, nearestPoliceStation: '',
@@ -328,6 +465,8 @@ function CreateGuardModal({ visible, onClose, onAdd, initialData }: { visible: b
 
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState(blankForm);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [empId, setEmpId] = useState<string | null>(null);
 
   useEffect(() => {
     if (visible) {
@@ -344,7 +483,31 @@ function CreateGuardModal({ visible, onClose, onAdd, initialData }: { visible: b
   const nextStep = () => { if (currentStep < 6) setCurrentStep(s => s + 1); else onAdd(formData); };
   const prevStep = () => { if (currentStep > 1) setCurrentStep(s => s - 1); };
 
+  const handleQuickSubmit = async () => {
+    if (!formData.fullName || !formData.phone || !formData.designation || !formData.grade) {
+      alert('Name, Phone, Designation and Grade are required.');
+      return;
+    }
+    setSubmitLoading(true);
+    try {
+      const res = await API.post('/api/employees', {
+        name: formData.fullName,
+        phone: formData.phone,
+        designation: formData.designation,
+        grade: formData.grade,
+        dateOfJoining: new Date().toISOString().split('T')[0],
+        formStatus: 'PENDING',
+      });
+      setEmpId(res.data.employeeId);
+    } catch (err: any) {
+      alert(err?.response?.data?.message ?? 'Failed to create employee.');
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
   return (
+    <>
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={styles.newMegaModal}>
@@ -434,14 +597,21 @@ function CreateGuardModal({ visible, onClose, onAdd, initialData }: { visible: b
                   <Text style={styles.editCardSectionTitle}>Personal Information</Text>
                   <View style={styles.fieldGrid}>
                     <FormInput label="Full Name *" value={formData.fullName} onChange={(v: string) => updateFormData('fullName', v)} placeholder="John Smith" />
+                    <FormInput label="Phone *" value={formData.phone} onChange={(v: string) => updateFormData('phone', v)} placeholder="+91 9XXXXXXXXX" />
+                    <FormInput label="Designation *" value={formData.designation} onChange={(v: string) => updateFormData('designation', v)} placeholder="GUARD / OFFICER / ADMIN" />
+                    <FormInput label="Grade *" value={formData.grade} onChange={(v: string) => updateFormData('grade', v)} placeholder="A / B / C" />
                     <FormInput label="Date of Birth *" value={formData.dob} onChange={(v: string) => updateFormData('dob', v)} placeholder="YYYY-MM-DD" />
                     <FormInput label="Gender" value={formData.gender} onChange={(v: string) => updateFormData('gender', v)} placeholder="Male / Female" />
                     <FormInput label="Nationality" value={formData.nationality} onChange={(v: string) => updateFormData('nationality', v)} placeholder="e.g. Indian" />
                     <FormInput label="Email *" value={formData.email} onChange={(v: string) => updateFormData('email', v)} placeholder="john@example.com" />
-                    <FormInput label="Phone *" value={formData.phone} onChange={(v: string) => updateFormData('phone', v)} placeholder="+91 9XXXXXXXXX" />
                     <FormInput label="Blood Group ⚠️" value={formData.bloodGroup} onChange={(v: string) => updateFormData('bloodGroup', v)} placeholder="O+" />
                     <FormInput label="Marital Status" value={formData.maritalStatus} onChange={(v: string) => updateFormData('maritalStatus', v)} placeholder="Married / Single" />
                   </View>
+                  <TouchableOpacity style={styles.quickSubmitBtn} onPress={handleQuickSubmit} disabled={submitLoading} activeOpacity={0.85}>
+                    {submitLoading
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <Text style={styles.quickSubmitBtnText}>⚡ Submit &amp; Get Employee ID</Text>}
+                  </TouchableOpacity>
                 </>)}
 
                 {currentStep === 2 && (<>
@@ -552,10 +722,26 @@ function CreateGuardModal({ visible, onClose, onAdd, initialData }: { visible: b
         </View>
       </View>
     </Modal>
+
+    {/* Employee ID success popup */}
+    <Modal visible={!!empId} transparent animationType="fade" onRequestClose={() => setEmpId(null)}>
+      <View style={styles.empIdOverlay}>
+        <View style={styles.empIdCard}>
+          <CheckCircle size={48} color="#10b981" />
+          <Text style={styles.empIdTitle}>Employee Created!</Text>
+          <Text style={styles.empIdSubtitle}>Your new employee ID is</Text>
+          <View style={styles.empIdBadge}>
+            <Text style={styles.empIdText}>{empId}</Text>
+          </View>
+          <TouchableOpacity style={styles.empIdDoneBtn} onPress={() => { setEmpId(null); onClose(); }}>
+            <Text style={styles.empIdDoneBtnText}>Done</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
-
-// ─── GuardDetailsModal ────────────────────────────────────────────────────────
 
 function GuardDetailsModal({ visible, guard, onClose, onEdit }: { visible: boolean, guard: any, onClose: () => void, onEdit: (guard: any) => void }) {
   if (!guard) return null;
@@ -566,7 +752,7 @@ function GuardDetailsModal({ visible, guard, onClose, onEdit }: { visible: boole
           <View style={styles.detailsHeader}>
             <View>
               <Text style={styles.detailsTitle}>Guard Profile</Text>
-              <Text style={styles.guardId}>{guard.id}</Text>
+              <Text style={styles.employeeId}>{guard.id}</Text>
             </View>
             <TouchableOpacity onPress={onClose}><XCircle size={28} color="#94a3b8" /></TouchableOpacity>
           </View>
@@ -625,29 +811,777 @@ function DetailRow({ label, value }: { label: string, value: string }) {
   );
 }
 
+// ─── UsersListView ────────────────────────────────────────────────────────────
+
+function UsersListView({ companyCode }: { companyCode?: string }) {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await API.get('/api/users');
+        setUsers(res.data);
+      } catch (err: any) {
+        const status = err?.response?.status;
+        const msg = err?.response?.data?.message ?? err?.message ?? 'Unknown error';
+        console.error('[UsersListView] fetch failed:', status, msg, err);
+        setError(`Error ${status ?? ''}: ${msg}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUsers();
+  }, [companyCode]);
+
+  const statusColor = (status: string) =>
+    status === 'ACTIVE' ? '#10b981' : status === 'INACTIVE' ? '#ef4444' : '#f59e0b';
+  const statusBg = (status: string) =>
+    status === 'ACTIVE' ? '#f0fdf4' : status === 'INACTIVE' ? '#fef2f2' : '#fffbeb';
+
+  if (loading) return (
+    <View style={styles.usersCenter}>
+      <ActivityIndicator size="large" color="#7c3aed" />
+    </View>
+  );
+
+  if (error) return (
+    <View style={styles.usersCenter}>
+      <Text style={styles.usersError}>{error}</Text>
+    </View>
+  );
+
+  return (
+    <View style={styles.usersContainer}>
+      <View style={styles.usersHeader}>
+        <Text style={styles.usersTitle}>Users</Text>
+        <Text style={styles.usersSubtitle}>{users.length} user{users.length !== 1 ? 's' : ''} found</Text>
+      </View>
+      <ScrollView contentContainerStyle={styles.usersList}>
+        {users.map((u: any) => (
+          <View key={u.id} style={styles.userRow}>
+            <View style={styles.userAvatar}>
+              <Text style={styles.userAvatarText}>{u.name?.[0]?.toUpperCase() ?? '?'}</Text>
+            </View>
+            <View style={styles.userInfo}>
+              <Text style={styles.userNameText}>{u.name}</Text>
+              <Text style={styles.userEmailText}>{u.email}</Text>
+            </View>
+            <View style={[styles.userStatusBadge, { backgroundColor: statusBg(u.status) }]}>
+              <Text style={[styles.userStatusText, { color: statusColor(u.status) }]}>{u.status}</Text>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+// ─── EmployeesListView ────────────────────────────────────────────────────────
+
+function EmployeesListView() {
+  const [employees, setEmployeesList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Search by ID
+  const [searchId, setSearchId] = useState('');
+  const [searchResult, setSearchResult] = useState<any | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  // Filters
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [formStatusFilter, setFormStatusFilter] = useState('ALL');
+  const [designationFilter, setDesignationFilter] = useState('ALL');
+
+  useEffect(() => {
+    const params: Record<string, string> = {};
+    if (statusFilter !== 'ALL') params.status = statusFilter;
+    if (formStatusFilter !== 'ALL') params.formStatus = formStatusFilter;
+    if (designationFilter !== 'ALL') params.designation = designationFilter;
+    const qs = new URLSearchParams(params).toString();
+    const query = qs ? `?${qs}` : '';
+
+    const fetchEmployees = async () => {
+      setLoading(true);
+      setError(null);
+      setSearchResult(null);
+      setSearchError(null);
+      setSearchId('');
+      try {
+        const res = await API.get(`/api/employees${query}`);
+        setEmployeesList(Array.isArray(res.data) ? res.data : res.data?.employees ?? []);
+      } catch (err: any) {
+        const st = err?.response?.status;
+        const msg = err?.response?.data?.message ?? err?.message ?? 'Unknown error';
+        setError(`Error ${st ?? ''}: ${msg}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEmployees();
+  }, [statusFilter, formStatusFilter, designationFilter]);
+
+  const handleSearch = async () => {
+    const id = searchId.trim();
+    if (!id) { setSearchResult(null); setSearchError(null); return; }
+    setSearchLoading(true);
+    setSearchResult(null);
+    setSearchError(null);
+    try {
+      const res = await API.get(`/api/employees/${id}`);
+      setSearchResult(res.data);
+    } catch (err: any) {
+      const st = err?.response?.status;
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Not found';
+      setSearchError(st === 404 ? 'Employee not found.' : `Error ${st}: ${msg}`);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const clearSearch = () => { setSearchId(''); setSearchResult(null); setSearchError(null); };
+
+  const statusColor = (s: string) =>
+    s === 'ACTIVE' ? '#10b981' : (s === 'INACTIVE' || s === 'TERMINATED') ? '#ef4444' : '#f59e0b';
+  const statusBg = (s: string) =>
+    s === 'ACTIVE' ? '#f0fdf4' : (s === 'INACTIVE' || s === 'TERMINATED') ? '#fef2f2' : '#fffbeb';
+
+  const renderRow = (emp: any, idx: number) => (
+    <View key={emp.id ?? emp.employeeId ?? idx} style={styles.userRow}>
+      <View style={styles.userAvatar}>
+        <Text style={styles.userAvatarText}>{emp.name?.[0]?.toUpperCase() ?? '?'}</Text>
+      </View>
+      <View style={styles.userInfo}>
+        <Text style={styles.userNameText}>{emp.name}</Text>
+        <Text style={styles.userEmailText}>{emp.designation ?? emp.email ?? '—'}</Text>
+        {(emp.employeeId || emp.id) && (
+          <Text style={styles.empRowId}>ID: {emp.employeeId ?? emp.id}</Text>
+        )}
+      </View>
+      <View style={[styles.userStatusBadge, { backgroundColor: statusBg(emp.status ?? emp.formStatus ?? '') }]}>
+        <Text style={[styles.userStatusText, { color: statusColor(emp.status ?? emp.formStatus ?? '') }]}>
+          {emp.status ?? emp.formStatus ?? 'N/A'}
+        </Text>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={styles.usersContainer}>
+      <View style={styles.usersHeader}>
+        <Text style={styles.usersTitle}>Employees</Text>
+        <Text style={styles.usersSubtitle}>{employees.length} employee{employees.length !== 1 ? 's' : ''} found</Text>
+      </View>
+
+      {/* ── Search by Employee ID ── */}
+      <View style={styles.empSearchRow}>
+        <Search size={16} color="#94a3b8" />
+        <TextInput
+          style={styles.empSearchInput}
+          placeholder="Search by Employee ID…"
+          placeholderTextColor="#94a3b8"
+          value={searchId}
+          onChangeText={setSearchId}
+          onSubmitEditing={handleSearch}
+        />
+        {searchId.length > 0 && (
+          <TouchableOpacity onPress={clearSearch} style={styles.empSearchClear}>
+            <XCircle size={16} color="#94a3b8" />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={styles.empSearchBtn} onPress={handleSearch}>
+          {searchLoading
+            ? <ActivityIndicator size="small" color="#fff" />
+            : <Text style={styles.empSearchBtnText}>Search</Text>}
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Filters ── */}
+      <View style={styles.empFiltersSection}>
+        <View style={styles.empFilterGroup}>
+          <Text style={styles.empFilterLabel}>Status</Text>
+          <View style={styles.empFilterPills}>
+            {['ALL', 'ACTIVE', 'TERMINATED'].map(s => (
+              <TouchableOpacity
+                key={s}
+                style={[styles.empFilterPill, statusFilter === s && styles.empFilterPillActive]}
+                onPress={() => setStatusFilter(s)}>
+                <Text style={[styles.empFilterPillText, statusFilter === s && styles.empFilterPillTextActive]}>{s}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+        <View style={styles.empFilterGroup}>
+          <Text style={styles.empFilterLabel}>Form Status</Text>
+          <View style={styles.empFilterPills}>
+            {['ALL', 'PENDING', 'COMPLETED'].map(s => (
+              <TouchableOpacity
+                key={s}
+                style={[styles.empFilterPill, formStatusFilter === s && styles.empFilterPillActive]}
+                onPress={() => setFormStatusFilter(s)}>
+                <Text style={[styles.empFilterPillText, formStatusFilter === s && styles.empFilterPillTextActive]}>{s}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+        <View style={styles.empFilterGroup}>
+          <Text style={styles.empFilterLabel}>Designation</Text>
+          <View style={styles.empFilterPills}>
+            {['ALL', 'GUARD'].map(s => (
+              <TouchableOpacity
+                key={s}
+                style={[styles.empFilterPill, designationFilter === s && styles.empFilterPillActive]}
+                onPress={() => setDesignationFilter(s)}>
+                <Text style={[styles.empFilterPillText, designationFilter === s && styles.empFilterPillTextActive]}>{s}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </View>
+
+      {/* ── Search result ── */}
+      {searchResult && (
+        <View style={styles.empSearchResultCard}>
+          <Text style={styles.empSearchResultTitle}>Search Result</Text>
+          {renderRow(searchResult, 0)}
+        </View>
+      )}
+      {searchError && (
+        <View style={styles.empSearchErrorBox}>
+          <Text style={styles.empSearchErrorText}>{searchError}</Text>
+        </View>
+      )}
+
+      {/* ── Employee list ── */}
+      {!searchResult && (
+        loading ? (
+          <View style={styles.usersCenter}>
+            <ActivityIndicator size="large" color="#7c3aed" />
+          </View>
+        ) : error ? (
+          <View style={styles.usersCenter}>
+            <Text style={styles.usersError}>{error}</Text>
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.usersList}>
+            {employees.length === 0 ? (
+              <View style={styles.usersCenter}>
+                <Text style={styles.usersError}>No employees found for selected filters.</Text>
+              </View>
+            ) : employees.map((emp, idx) => renderRow(emp, idx))}
+          </ScrollView>
+        )
+      )}
+    </View>
+  );
+}
+
+// ─── VendorView ───────────────────────────────────────────────────────────────
+
+function VendorView() {
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showStepper, setShowStepper] = useState(false);
+  const [selected, setSelected] = useState<any | null>(null);
+
+  const fetchVendors = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = Platform.OS === 'web'
+        ? localStorage.getItem('accessToken')
+        : await AsyncStorage.getItem('accessToken');
+      const res = await axios.get('http://localhost:8080/api/vendors', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setVendors(Array.isArray(res.data) ? res.data : res.data?.data ?? []);
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Failed to load vendors');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchVendors(); }, []);
+
+  const handleVendorSubmit = (_data: VendorFormData) => { fetchVendors(); };
+
+  const statusColor = (s: string) => {
+    if (s === 'ACTIVE') return '#10b981';
+    if (s === 'PENDING_APPROVAL') return '#f59e0b';
+    if (s === 'INACTIVE') return '#ef4444';
+    return '#64748b';
+  };
+  const statusBg = (s: string) => {
+    if (s === 'ACTIVE') return '#f0fdf4';
+    if (s === 'PENDING_APPROVAL') return '#fffbeb';
+    if (s === 'INACTIVE') return '#fef2f2';
+    return '#f8fafc';
+  };
+  const statusLabel = (s: string) => s.replace(/_/g, ' ');
+
+  return (
+    <View style={styles.vendorContainer}>
+      {/* Header */}
+      <View style={styles.vendorHeader}>
+        <View>
+          <Text style={styles.vendorTitle}>Vendors</Text>
+          <Text style={styles.vendorSubtitle}>Manage your supplier and vendor directory.</Text>
+        </View>
+        <TouchableOpacity style={styles.vendorAddBtn} onPress={() => setShowStepper(true)} activeOpacity={0.85}>
+          <Store size={18} color="#fff" />
+          <Text style={styles.vendorAddBtnText}>Add Vendor</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Table */}
+      {loading ? (
+        <View style={styles.vendorEmptyBox}>
+          <ActivityIndicator color="#7c3aed" size="large" />
+          <Text style={styles.vendorEmptyText}>Loading vendors…</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.vendorEmptyBox}>
+          <Text style={[styles.vendorEmptyText, { color: '#ef4444' }]}>{error}</Text>
+          <TouchableOpacity style={styles.vendorAddBtn} onPress={fetchVendors} activeOpacity={0.85}>
+            <Text style={styles.vendorAddBtnText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : vendors.length === 0 ? (
+        <View style={styles.vendorEmptyBox}>
+          <Store size={40} color="#cbd5e1" />
+          <Text style={styles.vendorEmptyText}>No vendors yet</Text>
+          <Text style={styles.vendorEmptySubText}>Add your first vendor using the button above.</Text>
+        </View>
+      ) : (
+        <View style={styles.vendorTableWrap}>
+          {/* Table header */}
+          <View style={styles.vendorTableHeader}>
+            <Text style={[styles.vendorTH, { flex: 1.2 }]}>Type</Text>
+            <Text style={[styles.vendorTH, { flex: 2.5 }]}>Legal Name</Text>
+            <Text style={[styles.vendorTH, { flex: 2 }]}>Trade Name</Text>
+            <Text style={[styles.vendorTH, { flex: 1.8 }]}>GSTIN</Text>
+            <Text style={[styles.vendorTH, { flex: 1.4 }]}>PAN</Text>
+            <Text style={[styles.vendorTH, { flex: 1.5 }]}>Status</Text>
+            <Text style={[styles.vendorTH, { flex: 1, textAlign: 'right' }]}> </Text>
+          </View>
+
+          {vendors.map((v, idx) => (
+            <View key={v.id} style={[styles.vendorTR, idx % 2 === 1 && styles.vendorTRAlt]}>
+              <Text style={[styles.vendorTD, { flex: 1.2 }]} numberOfLines={1}>
+                {v.vendorType?.replace(/_/g, ' ')}
+              </Text>
+              <Text style={[styles.vendorTD, styles.vendorTDStrong, { flex: 2.5 }]} numberOfLines={1}>
+                {v.legalCompanyName}
+              </Text>
+              <Text style={[styles.vendorTD, { flex: 2 }]} numberOfLines={1}>
+                {v.tradeName || '—'}
+              </Text>
+              <Text style={[styles.vendorTD, styles.vendorTDMono, { flex: 1.8 }]} numberOfLines={1}>
+                {v.gstin}
+              </Text>
+              <Text style={[styles.vendorTD, styles.vendorTDMono, { flex: 1.4 }]} numberOfLines={1}>
+                {v.pan}
+              </Text>
+              <View style={{ flex: 1.5 }}>
+                <View style={[styles.vendorStatusBadge, { backgroundColor: statusBg(v.status) }]}>
+                  <Text style={[styles.vendorStatusText, { color: statusColor(v.status) }]}>
+                    {statusLabel(v.status)}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[styles.vendorDetailsBtn, { flex: 1 }]}
+                onPress={() => setSelected(v)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.vendorDetailsBtnText}>Details</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Detail modal */}
+      <Modal visible={!!selected} transparent animationType="fade" onRequestClose={() => setSelected(null)}>
+        <View style={styles.stockDetailOverlay}>
+          <View style={[styles.stockDetailModal, { width: isWeb ? 620 : width - 24 }]}>
+            <View style={styles.stockDetailHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.stockDetailTitle}>{selected?.legalCompanyName}</Text>
+                <Text style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
+                  {selected?.vendorType?.replace(/_/g, ' ')}
+                  {selected?.tradeName ? ` · ${selected.tradeName}` : ''}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setSelected(null)} hitSlop={8}
+                style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}>
+                <XCircle size={18} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: isWeb ? 520 : '80%' }}>
+              {/* Business */}
+              <View style={styles.vendorDetailSection}>
+                <Text style={styles.vendorDetailSectionTitle}>Business Information</Text>
+                {[
+                  ['GSTIN', selected?.gstin],
+                  ['PAN', selected?.pan],
+                  ['MSME Number', selected?.msmeNumber],
+                  ['Address', [selected?.registeredAddress, selected?.city, selected?.state].filter(Boolean).join(', ')],
+                  ['Pincode', selected?.pincode],
+                  ['Status', selected?.status?.replace(/_/g, ' ')],
+                  ['Payment Terms', selected?.paymentTerms?.replace(/_/g, ' ')],
+                ].map(([label, value]) => value ? (
+                  <View key={label as string} style={styles.stockDetailRow}>
+                    <Text style={styles.stockDetailLabel}>{label}</Text>
+                    <Text style={styles.stockDetailValue}>{value as string}</Text>
+                  </View>
+                ) : null)}
+              </View>
+
+              {/* Contact */}
+              <View style={styles.vendorDetailSection}>
+                <Text style={styles.vendorDetailSectionTitle}>Contact Details</Text>
+                {[
+                  ['Name', selected?.contactPersonName],
+                  ['Mobile', selected?.contactPersonMobile],
+                  ['Email', selected?.contactPersonEmail],
+                  ['Landline', selected?.companyLandline],
+                ].map(([label, value]) => value ? (
+                  <View key={label as string} style={styles.stockDetailRow}>
+                    <Text style={styles.stockDetailLabel}>{label}</Text>
+                    <Text style={styles.stockDetailValue}>{value as string}</Text>
+                  </View>
+                ) : null)}
+              </View>
+
+              {/* Banking */}
+              <View style={styles.vendorDetailSection}>
+                <Text style={styles.vendorDetailSectionTitle}>Banking</Text>
+                {[
+                  ['Account Number', selected?.bankAccountNumber],
+                  ['IFSC Code', selected?.ifscCode],
+                  ['Beneficiary', selected?.beneficiaryName],
+                ].map(([label, value]) => value ? (
+                  <View key={label as string} style={styles.stockDetailRow}>
+                    <Text style={styles.stockDetailLabel}>{label}</Text>
+                    <Text style={styles.stockDetailValue}>{value as string}</Text>
+                  </View>
+                ) : null)}
+              </View>
+
+              {/* Products */}
+              {selected?.products?.length > 0 && (
+                <View style={styles.vendorDetailSection}>
+                  <Text style={styles.vendorDetailSectionTitle}>Products ({selected.products.length})</Text>
+                  <View style={styles.vendorProdTableHeader}>
+                    <Text style={[styles.vendorProdTH, { flex: 2.5 }]}>Product</Text>
+                    <Text style={[styles.vendorProdTH, { flex: 1.5 }]}>Category</Text>
+                    <Text style={[styles.vendorProdTH, { flex: 1.2, textAlign: 'right' }]}>Price</Text>
+                    <Text style={[styles.vendorProdTH, { flex: 0.8, textAlign: 'right' }]}>Unit</Text>
+                  </View>
+                  {selected.products.map((p: any) => (
+                    <View key={p.id} style={styles.vendorProdRow}>
+                      <View style={{ flex: 2.5 }}>
+                        <Text style={styles.vendorProdName} numberOfLines={1}>{p.productName}</Text>
+                        {p.description ? <Text style={styles.vendorProdDesc} numberOfLines={1}>{p.description}</Text> : null}
+                      </View>
+                      <Text style={[styles.vendorProdTD, { flex: 1.5 }]} numberOfLines={1}>
+                        {p.productCategory?.replace(/_/g, ' ')}
+                      </Text>
+                      <Text style={[styles.vendorProdTD, styles.vendorProdPrice, { flex: 1.2 }]}>
+                        ₹{Number(p.unitPrice).toLocaleString('en-IN')}
+                      </Text>
+                      <Text style={[styles.vendorProdTD, { flex: 0.8, textAlign: 'right' }]}>
+                        {p.unit}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <AddVendorStepper
+        visible={showStepper}
+        onClose={() => setShowStepper(false)}
+        onSubmit={handleVendorSubmit}
+      />
+    </View>
+  );
+}
+
+// ─── StocksView ───────────────────────────────────────────────────────────────
+
+function StocksView() {
+  const [stocks, setStocks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedStock, setSelectedStock] = useState<any | null>(null);
+
+  useEffect(() => {
+    const fetchStocks = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const token = Platform.OS === 'web'
+          ? localStorage.getItem('accessToken')
+          : await AsyncStorage.getItem('accessToken');
+        const res = await axios.get('http://localhost:8080/api/stock/items', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setStocks(Array.isArray(res.data) ? res.data : res.data?.items ?? []);
+      } catch (err: any) {
+        const st = err?.response?.status;
+        const msg = err?.response?.data?.message ?? err?.message ?? 'Unknown error';
+        setError(`Error ${st ?? ''}: ${msg}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStocks();
+  }, []);
+
+  const levelColor = (lowStock: boolean, qty: number, minQty: number) => {
+    if (lowStock || qty <= minQty) return '#ef4444';
+    if (qty <= minQty * 2) return '#f59e0b';
+    return '#10b981';
+  };
+  const levelBg = (lowStock: boolean, qty: number, minQty: number) => {
+    if (lowStock || qty <= minQty) return '#fef2f2';
+    if (qty <= minQty * 2) return '#fffbeb';
+    return '#f0fdf4';
+  };
+  const levelLabel = (lowStock: boolean, qty: number, minQty: number) => {
+    if (lowStock || qty <= minQty) return 'Critical';
+    if (qty <= minQty * 2) return 'Low';
+    return 'Good';
+  };
+
+  return (
+    <View style={styles.stocksContainer}>
+      <View style={styles.stocksHeader}>
+        <View>
+          <Text style={styles.stocksTitle}>Stocks</Text>
+          <Text style={styles.stocksSubtitle}>Track inventory and equipment levels.</Text>
+        </View>
+      </View>
+
+      {loading ? (
+        <View style={styles.usersCenter}><ActivityIndicator size="large" color="#0ea5e9" /></View>
+      ) : error ? (
+        <View style={styles.usersCenter}><Text style={styles.usersError}>{error}</Text></View>
+      ) : (
+        <View style={styles.stocksTable}>
+          <View style={styles.stocksTableHeader}>
+            <Text style={[styles.stocksTableHeaderCell, { flex: 2 }]}>Name</Text>
+            <Text style={styles.stocksTableHeaderCell}>Category</Text>
+            <Text style={styles.stocksTableHeaderCell}>Size</Text>
+            <Text style={styles.stocksTableHeaderCell}>Unit</Text>
+            <Text style={styles.stocksTableHeaderCell}>Qty</Text>
+            <Text style={[styles.stocksTableHeaderCell, { flex: 1.2 }]}>Stock</Text>
+            <Text style={[styles.stocksTableHeaderCell, { flex: 1.2 }]}></Text>
+          </View>
+          {stocks.length === 0 ? (
+            <View style={styles.stocksEmptyBox}>
+              <Package size={36} color="#cbd5e1" />
+              <Text style={styles.stocksEmptyText}>No stock items found</Text>
+            </View>
+          ) : stocks.map((s: any) => (
+            <View key={s.id} style={styles.stocksTableRow}>
+              <View style={{ flex: 2 }}>
+                <Text style={styles.stocksTableCellBold} numberOfLines={1}>{s.name}</Text>
+                {s.vendorName && <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }} numberOfLines={1}>{s.vendorName}</Text>}
+              </View>
+              <Text style={styles.stocksTableCell}>{s.category}</Text>
+              <Text style={styles.stocksTableCell}>{s.size ?? '—'}</Text>
+              <Text style={styles.stocksTableCell}>{s.unit}</Text>
+              <Text style={styles.stocksTableCellBold}>{s.currentQty}</Text>
+              <View style={{ flex: 1.2 }}>
+                <View style={[styles.stocksLevelBadge, { backgroundColor: levelBg(s.lowStock, s.currentQty, s.minQty) }]}>
+                  <Text style={[styles.stocksLevelText, { color: levelColor(s.lowStock, s.currentQty, s.minQty) }]}>
+                    {levelLabel(s.lowStock, s.currentQty, s.minQty)}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[styles.stocksMoreBtn, { flex: 1.2 }]}
+                onPress={() => setSelectedStock(s)}
+                activeOpacity={0.8}>
+                <Text style={styles.stocksMoreBtnText}>Details</Text>
+                <ChevronRight size={12} color="#0ea5e9" />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* ── Detail Modal ── */}
+      <Modal visible={!!selectedStock} transparent animationType="fade" onRequestClose={() => setSelectedStock(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.stockDetailModal}>
+            <View style={styles.stockDetailHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.stockDetailTitle}>{selectedStock?.name}</Text>
+                <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{selectedStock?.id}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setSelectedStock(null)}>
+                <XCircle size={26} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 440 }} contentContainerStyle={{ gap: 2 }}>
+              {[
+                ['Category', selectedStock?.category],
+                ['Size', selectedStock?.size ?? '—'],
+                ['Unit', selectedStock?.unit],
+                ['Current Qty', selectedStock?.currentQty],
+                ['Min Qty', selectedStock?.minQty],
+                ['Unit Price', selectedStock?.unitPrice != null ? `₹${selectedStock.unitPrice}` : '—'],
+                ['Vendor', selectedStock?.vendorName ?? '—'],
+                ['Status', selectedStock?.status],
+                ['Low Stock', selectedStock?.lowStock ? 'Yes' : 'No'],
+                ['Created At', selectedStock?.createdAt ? new Date(selectedStock.createdAt).toLocaleString() : '—'],
+                ['Updated At', selectedStock?.updatedAt ? new Date(selectedStock.updatedAt).toLocaleString() : '—'],
+              ].map(([label, value]) => (
+                <View key={label as string} style={styles.stockDetailRow}>
+                  <Text style={styles.stockDetailLabel}>{label}</Text>
+                  <Text style={styles.stockDetailValue}>{String(value ?? '—')}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+// ─── CreateUserView ───────────────────────────────────────────────────────────
+
+type UserType = 'ADMIN' | 'OFFICER' | 'GUARD';
+const USER_TYPES: UserType[] = ['ADMIN', 'OFFICER', 'GUARD'];
+
+function CreateUserView() {
+  const blankForm = { name: '', email: '', password: '', phone: '', companyCode: '', userType: 'OFFICER' as UserType };
+  const [form, setForm] = useState(blankForm);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const set = (key: keyof typeof form) => (value: string) =>
+    setForm(prev => ({ ...prev, [key]: value }));
+
+  const handleSubmit = async () => {
+    setError(null);
+    setSuccess(null);
+    const { name, email, password, phone, companyCode } = form;
+    if (!name || !email || !password || !phone || !companyCode) {
+      setError('All fields are required.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await API.post('/auth/create/user', form);
+      setSuccess(`User "${res.data.name}" created successfully!`);
+      setForm(blankForm);
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Failed to create user. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={styles.createUserContainer}>
+      <View style={styles.createUserCard}>
+        <Text style={styles.createUserTitle}>Create New User</Text>
+        <Text style={styles.createUserSubtitle}>Add a new admin, officer, or guard to the system.</Text>
+
+        <View style={styles.createUserGrid}>
+          <CreateUserField label="Full Name" value={form.name} onChangeText={set('name')} placeholder="e.g. Ray Sharma" />
+          <CreateUserField label="Email" value={form.email} onChangeText={set('email')} placeholder="e.g. ray@shield.com" keyboardType="email-address" autoCapitalize="none" />
+          <CreateUserField label="Password" value={form.password} onChangeText={set('password')} placeholder="Password" secureTextEntry />
+          <CreateUserField label="Phone" value={form.phone} onChangeText={set('phone')} placeholder="e.g. 9999999999" keyboardType="phone-pad" />
+          <CreateUserField label="Company Code" value={form.companyCode} onChangeText={set('companyCode')} placeholder="e.g. REENA" autoCapitalize="characters" />
+        </View>
+
+        <Text style={styles.createUserLabel}>User Type</Text>
+        <View style={styles.createUserSegment}>
+          {USER_TYPES.map(type => (
+            <TouchableOpacity
+              key={type}
+              style={[styles.segmentBtn, form.userType === type && styles.segmentBtnActive]}
+              onPress={() => setForm(prev => ({ ...prev, userType: type }))}>
+              <Text style={[styles.segmentBtnText, form.userType === type && styles.segmentBtnTextActive]}>{type}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {error ? <View style={styles.alertError}><Text style={styles.alertErrorText}>{error}</Text></View> : null}
+        {success ? <View style={styles.alertSuccess}><Text style={styles.alertSuccessText}>{success}</Text></View> : null}
+
+        <TouchableOpacity style={styles.createUserBtn} onPress={handleSubmit} disabled={loading} activeOpacity={0.85}>
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.createUserBtnText}>Create User</Text>}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function CreateUserField({ label, ...props }: { label: string } & React.ComponentProps<typeof TextInput>) {
+  return (
+    <View style={styles.createUserFieldWrapper}>
+      <Text style={styles.createUserLabel}>{label}</Text>
+      <TextInput style={styles.createUserInput} placeholderTextColor="#94a3b8" {...props} />
+    </View>
+  );
+}
+
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   // Layout
   container: { flex: 1, flexDirection: 'row', backgroundColor: '#f8fafc' },
-  sidebar: { width: 260, backgroundColor: '#fff', borderRightWidth: 1, borderRightColor: '#e2e8f0', zIndex: 1000 },
-  sidebarContent: { flex: 1, padding: 24 },
-  mobileSidebar: { position: 'absolute', left: 0, top: 0, bottom: 0, shadowColor: '#000', shadowOffset: { width: 4, height: 0 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 10 },
-  overlay: { position: 'absolute', left: 260, top: 0, bottom: 0, width: width, backgroundColor: 'rgba(0,0,0,0.3)' },
-  sidebarHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 48, gap: 12 },
-  brandName: { fontSize: 22, fontWeight: '800', color: '#1e293b' },
-  navItems: { flex: 1, gap: 8 },
-  navItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, gap: 12 },
-  navItemActive: { backgroundColor: '#7c3aed' },
-  navIcon: { color: '#64748b' },
-  navIconActive: { color: '#fff' },
-  navLabel: { fontSize: 15, fontWeight: '600', color: '#64748b' },
-  navLabelActive: { color: '#fff' },
-  sidebarFooter: { borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 24 },
-  userProfile: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center' },
-  userName: { fontSize: 14, fontWeight: '700', color: '#1e293b' },
-  userRole: { fontSize: 12, color: '#64748b' },
+  sidebar: { width: 248, backgroundColor: '#fafafa', borderRightWidth: 1, borderRightColor: '#e5e7eb', zIndex: 1000 },
+  sidebarCollapsed: { width: 56 },
+  sidebarContent: { flex: 1, paddingHorizontal: 12, paddingVertical: 20 },
+  sidebarContentCollapsed: { paddingHorizontal: 8, alignItems: 'center' },
+  mobileSidebar: { position: 'absolute', left: 0, top: 0, bottom: 0, shadowColor: '#000', shadowOffset: { width: 4, height: 0 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 12 },
+  overlay: { position: 'absolute', left: 260, top: 0, bottom: 0, width: width, backgroundColor: 'rgba(0,0,0,0.25)' },
+  sidebarHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 28, gap: 8, paddingHorizontal: 4 },
+  sidebarHeaderCollapsed: { flexDirection: 'column', alignItems: 'center', gap: 10, paddingHorizontal: 0 },
+  brandName: { fontSize: 15, fontWeight: '700', color: '#111827', flex: 1 },
+  collapseSidebarBtn: { padding: 4, borderRadius: 6 },
+  navItems: { flex: 1, gap: 2, alignSelf: 'stretch' },
+  navItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8, gap: 10 },
+  navItemActive: { backgroundColor: '#f3f4f6' },
+  navItemCollapsed: { justifyContent: 'center', paddingHorizontal: 0, width: 36, alignSelf: 'center' },
+  navGroupRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8, gap: 10 },
+  navGroupLabel: { flex: 1, fontSize: 14, fontWeight: '500', color: '#374151' },
+  navIcon: { width: 20, alignItems: 'center' },
+  navIconActive: { color: '#111827' },
+  navLabel: { flex: 1, fontSize: 14, fontWeight: '500', color: '#374151' },
+  navLabelActive: { color: '#111827', fontWeight: '600' },
+  sidebarFooter: { borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 16, gap: 6, alignSelf: 'stretch' },
+  sidebarFooterCollapsed: { alignItems: 'center' },
+  userProfile: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 8, borderRadius: 8 },
+  userProfileCollapsed: { justifyContent: 'center', padding: 4 },
+  logoutPopover: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fecaca', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 },
+  logoutPopoverText: { color: '#ef4444', fontWeight: '600', fontSize: 13 },
+  logoutIconBtn: { alignItems: 'center', padding: 8 },
+  avatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#e0e7ff', justifyContent: 'center', alignItems: 'center' },
+  avatarInitial: { fontSize: 12, fontWeight: '700', color: '#4f46e5' },
+  userName: { fontSize: 13, fontWeight: '600', color: '#111827' },
+  userRole: { fontSize: 11, color: '#9ca3af', marginTop: 1 },
 
   // Main content
   mainContent: { flex: 1 },
@@ -698,29 +1632,179 @@ const styles = StyleSheet.create({
   bold: { fontWeight: '700', color: '#1e293b' },
   notifTime: { fontSize: 12, color: '#94a3b8', marginTop: 4 },
 
-  // Guards view
-  guardsView: { flex: 1 },
-  guardsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  guardsTitle: { fontSize: 24, fontWeight: '800', color: '#1e293b' },
-  guardsSubtitle: { fontSize: 14, color: '#64748b', marginTop: 4 },
-  addGuardBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#7c3aed', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, gap: 8 },
-  addGuardBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  guardsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
-  guardCard: { backgroundColor: '#fff', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#e2e8f0', minWidth: isWeb ? 280 : width - 48, flexGrow: 1 },
-  guardCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  guardAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#f5f3ff', justifyContent: 'center', alignItems: 'center' },
-  guardStatus: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // Employees view
+  employeesView: { flex: 1 },
+  employeesHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  employeesTitle: { fontSize: 24, fontWeight: '800', color: '#1e293b' },
+  employeesSubtitle: { fontSize: 14, color: '#64748b', marginTop: 4 },
+  addEmployeeBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#7c3aed', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, gap: 8 },
+  addEmployeeBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  employeesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
+  employeeCard: { backgroundColor: '#fff', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#e2e8f0', minWidth: isWeb ? 280 : width - 48, flexGrow: 1 },
+  employeeCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  employeeAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#f5f3ff', justifyContent: 'center', alignItems: 'center' },
+  employeeStatus: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  guardStatusText: { fontSize: 12, fontWeight: '600', color: '#64748b' },
-  guardCardBody: { marginBottom: 16, gap: 6 },
-  guardName: { fontSize: 18, fontWeight: '700', color: '#1e293b' },
-  guardId: { fontSize: 13, color: '#94a3b8', marginBottom: 8 },
-  guardDetailRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  guardDetailText: { fontSize: 13, color: '#64748b' },
-  guardCardFooter: { borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 16 },
-  guardActionBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  guardActionText: { fontSize: 14, fontWeight: '600', color: '#7c3aed' },
+  employeeStatusText: { fontSize: 12, fontWeight: '600', color: '#64748b' },
+  employeeCardBody: { marginBottom: 16, gap: 6 },
+  employeeName: { fontSize: 18, fontWeight: '700', color: '#1e293b' },
+  employeeId: { fontSize: 13, color: '#94a3b8', marginBottom: 8 },
+  employeeDetailRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  employeeDetailText: { fontSize: 13, color: '#64748b' },
+  employeeCardFooter: { borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 16 },
+  employeeActionBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  employeeActionText: { fontSize: 14, fontWeight: '600', color: '#7c3aed' },
   placeholderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
+  // Create User View
+  createUserContainer: { flex: 1, alignItems: isWeb ? 'center' : 'stretch' },
+  createUserCard: { backgroundColor: '#fff', borderRadius: 24, padding: 32, borderWidth: 1, borderColor: '#e2e8f0', width: isWeb ? 600 : '100%' },
+  createUserTitle: { fontSize: 22, fontWeight: '800', color: '#1e293b', marginBottom: 4 },
+  createUserSubtitle: { fontSize: 14, color: '#64748b', marginBottom: 28 },
+  createUserGrid: { gap: 4, marginBottom: 20 },
+  createUserFieldWrapper: { marginBottom: 16 },
+  createUserLabel: { fontSize: 13, fontWeight: '600', color: '#64748b', marginBottom: 6 },
+  createUserInput: { backgroundColor: '#f8fafc', color: '#1e293b', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, borderWidth: 1, borderColor: '#e2e8f0' },
+  createUserSegment: { flexDirection: 'row', gap: 8, marginBottom: 24 },
+  segmentBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', backgroundColor: '#f8fafc' },
+  segmentBtnActive: { backgroundColor: '#7c3aed', borderColor: '#7c3aed' },
+  segmentBtnText: { color: '#64748b', fontSize: 13, fontWeight: '600' },
+  segmentBtnTextActive: { color: '#fff' },
+  alertError: { backgroundColor: '#fef2f2', borderRadius: 10, padding: 12, marginBottom: 16 },
+  alertErrorText: { color: '#ef4444', fontSize: 13 },
+  alertSuccess: { backgroundColor: '#f0fdf4', borderRadius: 10, padding: 12, marginBottom: 16 },
+  alertSuccessText: { color: '#10b981', fontSize: 13 },
+  createUserBtn: { backgroundColor: '#7c3aed', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  createUserBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+
+  // Sub-nav
+  subNavItems: { marginLeft: 10, marginTop: 2, gap: 1, paddingLeft: 16, borderLeftWidth: 1, borderLeftColor: '#e5e7eb' },
+  subNavItem: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6 },
+  subNavItemActive: { backgroundColor: '#f3f4f6' },
+  subNavLabel: { fontSize: 13, color: '#6b7280', fontWeight: '400' },
+  subNavLabelActive: { color: '#111827', fontWeight: '600' },
+
+  // Users list
+  usersContainer: { flex: 1 },
+  usersHeader: { marginBottom: 20 },
+  usersTitle: { fontSize: 22, fontWeight: '800', color: '#1e293b' },
+  usersSubtitle: { fontSize: 14, color: '#64748b', marginTop: 2 },
+  usersList: { gap: 10 },
+  usersCenter: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+  usersError: { color: '#ef4444', fontSize: 14, textAlign: 'center' },
+  userRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#e2e8f0', gap: 14 },
+  userAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#ede9fe', justifyContent: 'center', alignItems: 'center' },
+  userAvatarText: { fontSize: 18, fontWeight: '700', color: '#7c3aed' },
+  userInfo: { flex: 1 },
+  userNameText: { fontSize: 15, fontWeight: '700', color: '#1e293b' },
+  userEmailText: { fontSize: 13, color: '#64748b', marginTop: 2 },
+  userStatusBadge: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8 },
+  userStatusText: { fontSize: 12, fontWeight: '700' },
+
+  // Employee list search & filters
+  empSearchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', paddingHorizontal: 14, paddingVertical: 6 },
+  empSearchInput: { flex: 1, fontSize: 14, color: '#1e293b', paddingVertical: 8 },
+  empSearchClear: { padding: 2 },
+  empSearchBtn: { backgroundColor: '#7c3aed', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14 },
+  empSearchBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  empFiltersSection: { gap: 10, marginBottom: 18 },
+  empFilterGroup: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  empFilterLabel: { fontSize: 12, fontWeight: '700', color: '#64748b', minWidth: 90 },
+  empFilterPills: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  empFilterPill: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f8fafc' },
+  empFilterPillActive: { backgroundColor: '#7c3aed', borderColor: '#7c3aed' },
+  empFilterPillText: { fontSize: 12, fontWeight: '600', color: '#64748b' },
+  empFilterPillTextActive: { color: '#fff' },
+  empSearchResultCard: { backgroundColor: '#f5f3ff', borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#ddd6fe' },
+  empSearchResultTitle: { fontSize: 12, fontWeight: '700', color: '#7c3aed', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  empSearchErrorBox: { backgroundColor: '#fef2f2', borderRadius: 10, padding: 12, marginBottom: 16 },
+  empSearchErrorText: { color: '#ef4444', fontSize: 13 },
+  empRowId: { fontSize: 11, color: '#94a3b8', marginTop: 2 },
+
+  // Vendor view
+  vendorContainer: { flex: 1 },
+  vendorHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  vendorTitle: { fontSize: 24, fontWeight: '800', color: '#1e293b' },
+  vendorSubtitle: { fontSize: 14, color: '#64748b', marginTop: 4 },
+  vendorAddBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#7c3aed', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, gap: 8 },
+  vendorAddBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  vendorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
+  vendorCard: { backgroundColor: '#fff', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#e2e8f0', minWidth: isWeb ? 280 : width - 48, flexGrow: 1 },
+  vendorCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 },
+  vendorAvatarBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center' },
+  vendorCardName: { fontSize: 16, fontWeight: '700', color: '#1e293b' },
+  vendorCardCategory: { fontSize: 12, color: '#64748b', marginTop: 2 },
+  vendorCardRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  vendorCardRowText: { fontSize: 13, color: '#64748b' },
+  vendorBadge: { alignSelf: 'flex-start', marginTop: 12, paddingVertical: 3, paddingHorizontal: 10, borderRadius: 20, borderWidth: 1 },
+  vendorBadgeText: { fontSize: 11, fontWeight: '700' },
+  vendorEmptyBox: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 80, gap: 10 },
+  vendorEmptyText: { fontSize: 16, color: '#94a3b8', fontWeight: '600' },
+  vendorEmptySubText: { fontSize: 13, color: '#cbd5e1' },
+
+  // Vendor table
+  vendorTableWrap: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
+  vendorTableHeader: { flexDirection: 'row', backgroundColor: '#f8fafc', paddingVertical: 11, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
+  vendorTH: { fontSize: 11, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 },
+  vendorTR: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  vendorTRAlt: { backgroundColor: '#fafafa' },
+  vendorTD: { fontSize: 13, color: '#374151' },
+  vendorTDStrong: { fontWeight: '700', color: '#1e293b' },
+  vendorTDMono: { fontFamily: isWeb ? 'monospace' : undefined, fontSize: 12, color: '#64748b' },
+  vendorStatusBadge: { alignSelf: 'flex-start', paddingVertical: 3, paddingHorizontal: 10, borderRadius: 20 },
+  vendorStatusText: { fontSize: 11, fontWeight: '700' },
+  vendorDetailsBtn: { alignItems: 'flex-end' },
+  vendorDetailsBtnText: { fontSize: 12, fontWeight: '700', color: '#7c3aed' },
+
+  // Vendor detail modal sections
+  vendorDetailSection: { marginBottom: 4 },
+  vendorDetailSectionTitle: { fontSize: 11, fontWeight: '700', color: '#7c3aed', textTransform: 'uppercase', letterSpacing: 0.7, backgroundColor: '#fafafa', paddingHorizontal: 22, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  vendorProdTableHeader: { flexDirection: 'row', paddingHorizontal: 22, paddingVertical: 8, backgroundColor: '#f8fafc', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  vendorProdTH: { fontSize: 10, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' },
+  vendorProdRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 22, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
+  vendorProdName: { fontSize: 13, fontWeight: '600', color: '#1e293b' },
+  vendorProdDesc: { fontSize: 11, color: '#94a3b8', marginTop: 1 },
+  vendorProdTD: { fontSize: 12, color: '#64748b' },
+  vendorProdPrice: { fontWeight: '700', color: '#10b981', textAlign: 'right' },
+
+  // Stocks view
+  stocksContainer: { flex: 1 },
+  stocksHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  stocksTitle: { fontSize: 24, fontWeight: '800', color: '#1e293b' },
+  stocksSubtitle: { fontSize: 14, color: '#64748b', marginTop: 4 },
+  stocksAddBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0ea5e9', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, gap: 8 },
+  stocksAddBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  stocksTable: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
+  stocksTableHeader: { flexDirection: 'row', backgroundColor: '#f8fafc', paddingVertical: 12, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
+  stocksTableHeaderCell: { fontSize: 11, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', flex: 1 },
+  stocksTableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  stocksTableCell: { fontSize: 13, color: '#374151', flex: 1 },
+  stocksTableCellBold: { fontSize: 13, fontWeight: '700', color: '#1e293b', flex: 1 },
+  stocksLevelBadge: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 20, alignSelf: 'flex-start' },
+  stocksLevelText: { fontSize: 11, fontWeight: '700' },
+  stocksEmptyBox: { justifyContent: 'center', alignItems: 'center', paddingVertical: 60, gap: 10 },
+  stocksEmptyText: { fontSize: 16, color: '#94a3b8', fontWeight: '600' },
+  stocksMoreBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, justifyContent: 'flex-end' },
+  stocksMoreBtnText: { fontSize: 12, fontWeight: '600', color: '#0ea5e9' },
+  stockDetailOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'center', alignItems: 'center' },
+  stockDetailModal: { width: isWeb ? 500 : width - 32, maxHeight: '85%', backgroundColor: '#fff', borderRadius: 20, overflow: 'hidden' },
+  stockDetailHeader: { flexDirection: 'row', alignItems: 'flex-start', padding: 22, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  stockDetailTitle: { fontSize: 18, fontWeight: '800', color: '#1e293b' },
+  stockDetailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 11, paddingHorizontal: 22, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
+  stockDetailLabel: { fontSize: 13, color: '#64748b', fontWeight: '500' },
+  stockDetailValue: { fontSize: 13, color: '#1e293b', fontWeight: '600', textAlign: 'right', flex: 1, marginLeft: 16 },
+  quickSubmitBtn: { marginTop: 20, backgroundColor: '#10b981', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  quickSubmitBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+
+  // Employee ID popup
+  empIdOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center' },
+  empIdCard: { backgroundColor: '#fff', borderRadius: 24, padding: 36, alignItems: 'center', width: 320, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 10 },
+  empIdTitle: { fontSize: 22, fontWeight: '800', color: '#1e293b', marginTop: 8 },
+  empIdSubtitle: { fontSize: 14, color: '#64748b' },
+  empIdBadge: { backgroundColor: '#f0fdf4', borderWidth: 1.5, borderColor: '#10b981', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 24, marginVertical: 4 },
+  empIdText: { fontSize: 20, fontWeight: '800', color: '#10b981', letterSpacing: 1 },
+  empIdDoneBtn: { backgroundColor: '#7c3aed', paddingVertical: 12, paddingHorizontal: 40, borderRadius: 12, marginTop: 8 },
+  empIdDoneBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
   // Modal overlay
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center' },
@@ -731,7 +1815,7 @@ const styles = StyleSheet.create({
   hStepperBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderBottomWidth: 1, borderBottomColor: '#e2e8f0', paddingHorizontal: 16, paddingVertical: 14 },
   hStepperSteps: { flex: 1, flexDirection: 'row', alignItems: 'flex-start' },
   hStepItem: { flex: 1, alignItems: 'center', position: 'relative' },
-  hConnector: { position: 'absolute', top: 14, right: '50%', left: '-50%', height: 2, backgroundColor: '#e2e8f0' },
+  hConnector: { position: 'absolute', top: 14, right: '50%', left: '-50%', height: 2, backgroundColor: '#e2e8f0', zIndex: 0 },
   hConnectorDone: { backgroundColor: '#6C2BD9' },
   hCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#e2e8f0', justifyContent: 'center', alignItems: 'center', zIndex: 1 },
   hCircleActive: { backgroundColor: '#6C2BD9' },

@@ -37,6 +37,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.2.fill" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="create-user"
+        options={{
+          title: 'Create User',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.badge.plus" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }
