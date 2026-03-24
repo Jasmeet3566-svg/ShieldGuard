@@ -37,6 +37,7 @@ import {
 } from 'react-native';
 import Animated, { FadeInRight } from 'react-native-reanimated';
 import AddVendorStepper, { VendorFormData } from '../../components/AddVendorStepper';
+import CreateOrderStepper from '../../components/CreateOrderStepper';
 import { useAuth } from '../AuthContext';
 import API from '../client';
 
@@ -54,6 +55,7 @@ export default function PortalScreen() {
   const [editingGuard, setEditingGuard] = useState<any>(null);
   const [usersExpanded, setUsersExpanded] = useState(false);
   const [employeesExpanded, setEmployeesExpanded] = useState(false);
+  const [inventoryExpanded, setInventoryExpanded] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const [employees, setEmployees] = useState([
@@ -105,7 +107,36 @@ export default function PortalScreen() {
               <NavItem icon={<Bell size={16} />} label="Alerts" active={activeTab === 'Alerts'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Alerts'); if (!isDesktop) setIsSidebarOpen(false); }} />
               <NavItem icon={<Settings size={16} />} label="Settings" active={activeTab === 'Settings'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Settings'); if (!isDesktop) setIsSidebarOpen(false); }} />
               <NavItem icon={<Store size={16} />} label="Vendor" active={activeTab === 'Vendor'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Vendor'); if (!isDesktop) setIsSidebarOpen(false); }} />
-              <NavItem icon={<Package size={16} />} label="Stocks" active={activeTab === 'Stocks'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Stocks'); if (!isDesktop) setIsSidebarOpen(false); }} />
+              {/* Expandable Inventory group */}
+              {isSidebarCollapsed ? (
+                <TouchableOpacity
+                  style={[styles.navItem, styles.navItemCollapsed, (activeTab === 'Stocks' || activeTab === 'Create Order' || activeTab === 'Order Placed') && styles.navItemActive]}
+                  onPress={() => { setIsSidebarCollapsed(false); setInventoryExpanded(true); }}
+                  activeOpacity={0.7}>
+                  <Package size={16} color={(activeTab === 'Stocks' || activeTab === 'Create Order' || activeTab === 'Order Placed') ? '#111827' : '#6b7280'} />
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <TouchableOpacity style={styles.navGroupRow} onPress={() => setInventoryExpanded(prev => !prev)} activeOpacity={0.7}>
+                    <View style={styles.navIcon}><Package size={16} color="#6b7280" /></View>
+                    <Text style={styles.navGroupLabel}>Inventory</Text>
+                    {inventoryExpanded ? <Minus size={14} color="#9ca3af" /> : <Plus size={14} color="#9ca3af" />}
+                  </TouchableOpacity>
+                  {inventoryExpanded && (
+                    <View style={styles.subNavItems}>
+                      <TouchableOpacity style={[styles.subNavItem, activeTab === 'Create Order' && styles.subNavItemActive]} onPress={() => { setActiveTab('Create Order'); if (!isDesktop) setIsSidebarOpen(false); }}>
+                        <Text style={[styles.subNavLabel, activeTab === 'Create Order' && styles.subNavLabelActive]}>Create Order</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.subNavItem, activeTab === 'Stocks' && styles.subNavItemActive]} onPress={() => { setActiveTab('Stocks'); if (!isDesktop) setIsSidebarOpen(false); }}>
+                        <Text style={[styles.subNavLabel, activeTab === 'Stocks' && styles.subNavLabelActive]}>Stocks</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.subNavItem, activeTab === 'Order Placed' && styles.subNavItemActive]} onPress={() => { setActiveTab('Order Placed'); if (!isDesktop) setIsSidebarOpen(false); }}>
+                        <Text style={[styles.subNavLabel, activeTab === 'Order Placed' && styles.subNavLabelActive]}>Order Placed</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </>
+              )}
 
               {/* Expandable Employees group */}
               {isSidebarCollapsed ? (
@@ -276,6 +307,10 @@ export default function PortalScreen() {
             <VendorView />
           ) : activeTab === 'Stocks' ? (
             <StocksView />
+          ) : activeTab === 'Create Order' ? (
+            <CreateOrderView />
+          ) : activeTab === 'Order Placed' ? (
+            <OrderPlacedView />
           ) : (
             <View style={styles.placeholderContainer}>
               <Text style={styles.placeholderText}>This {activeTab} section is coming soon!</Text>
@@ -1322,6 +1357,50 @@ function VendorView() {
 
 // ─── StocksView ───────────────────────────────────────────────────────────────
 
+function CreateOrderView() {
+  const [open, setOpen] = useState(true);
+  return (
+    <View style={styles.stocksContainer}>
+      <View style={styles.stocksHeader}>
+        <View>
+          <Text style={styles.stocksTitle}>Create Order</Text>
+          <Text style={styles.stocksSubtitle}>Place a new purchase order from your vendors.</Text>
+        </View>
+        <TouchableOpacity style={styles.stocksOrderBtn} onPress={() => setOpen(true)} activeOpacity={0.85}>
+          <Plus size={15} color="#fff" />
+          <Text style={styles.stocksOrderBtnText}>New Order</Text>
+        </TouchableOpacity>
+      </View>
+      {!open && (
+        <View style={[styles.stocksEmptyBox, { marginTop: 40 }]}>
+          <Package size={40} color="#cbd5e1" />
+          <Text style={styles.stocksEmptyText}>No open order</Text>
+          <Text style={{ fontSize: 13, color: '#94a3b8' }}>Tap "New Order" to create a purchase order.</Text>
+        </View>
+      )}
+      <CreateOrderStepper visible={open} onClose={() => setOpen(false)} />
+    </View>
+  );
+}
+
+function OrderPlacedView() {
+  return (
+    <View style={styles.stocksContainer}>
+      <View style={styles.stocksHeader}>
+        <View>
+          <Text style={styles.stocksTitle}>Orders Placed</Text>
+          <Text style={styles.stocksSubtitle}>History of all purchase orders.</Text>
+        </View>
+      </View>
+      <View style={[styles.stocksEmptyBox, { marginTop: 40 }]}>
+        <Package size={40} color="#cbd5e1" />
+        <Text style={styles.stocksEmptyText}>No orders yet</Text>
+        <Text style={{ fontSize: 13, color: '#94a3b8' }}>Placed orders will appear here.</Text>
+      </View>
+    </View>
+  );
+}
+
 function StocksView() {
   const [stocks, setStocks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1774,6 +1853,8 @@ const styles = StyleSheet.create({
   stocksSubtitle: { fontSize: 14, color: '#64748b', marginTop: 4 },
   stocksAddBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0ea5e9', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, gap: 8 },
   stocksAddBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  stocksOrderBtn: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#6366f1', paddingHorizontal: 18, paddingVertical: 11, borderRadius: 12 },
+  stocksOrderBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   stocksTable: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
   stocksTableHeader: { flexDirection: 'row', backgroundColor: '#f8fafc', paddingVertical: 12, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
   stocksTableHeaderCell: { fontSize: 11, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', flex: 1 },
