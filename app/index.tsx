@@ -457,6 +457,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: '#0f172a',
+    outlineStyle: 'none',
   },
   signInButton: {
     backgroundColor: '#ea580c',
@@ -654,6 +655,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: '#0f172a',
+    outlineStyle: 'none',
   },
   subFooter: {
     padding: 20,

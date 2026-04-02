@@ -10,7 +10,6 @@ import {
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Dimensions,
     Modal,
     Platform,
     ScrollView,
@@ -19,9 +18,9 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    useWindowDimensions,
 } from 'react-native';
 
-const { width } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -315,6 +314,7 @@ function Step2({
   form: VendorFormData; set: (k: keyof VendorFormData, v: any) => void;
   errors: Record<string, string>;
 }) {
+  const { width: vw } = useWindowDimensions();
   // Guard: ensure selectedEquipment is always an array even if state is stale
   const selectedEquipment: EquipmentItem[] = form.selectedEquipment ?? [];
 
@@ -438,7 +438,7 @@ function Step2({
       {/* Custom product popup */}
       <Modal visible={showAddPopup} transparent animationType="fade" onRequestClose={() => setShowAddPopup(false)}>
         <View style={s.popupOverlay}>
-          <View style={s.popupSheet}>
+          <View style={[s.popupSheet, !isWeb && { width: vw - 40 }]}>
             <View style={s.popupHeader}>
               <Text style={s.popupTitle}>Add Custom Product</Text>
               <TouchableOpacity onPress={() => setShowAddPopup(false)} style={s.closeBtn} hitSlop={8}>
@@ -773,6 +773,7 @@ function Step4({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AddVendorStepper({ visible, onClose, onSubmit }: Props) {
+  const { width: vw } = useWindowDimensions();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<VendorFormData>({ ...INITIAL_FORM, documents: {}, selectedEquipment: [] });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -891,7 +892,7 @@ export default function AddVendorStepper({ visible, onClose, onSubmit }: Props) 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
       <View style={s.overlay}>
-        <View style={s.sheet}>
+        <View style={[s.sheet, !isWeb && { width: vw - 24 }]}>
 
           {/* Header */}
           <View style={s.header}>
@@ -979,7 +980,7 @@ export default function AddVendorStepper({ visible, onClose, onSubmit }: Props) 
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const SHEET_WIDTH = isWeb ? 680 : width - 24;
+const SHEET_WIDTH = isWeb ? 680 : 375;
 
 const s = StyleSheet.create({
   overlay: {
@@ -1257,7 +1258,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   popupSheet: {
-    width: isWeb ? 460 : width - 40,
+    width: isWeb ? 460 : 340,
     backgroundColor: '#fff',
     borderRadius: 18,
     overflow: 'hidden',

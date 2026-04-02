@@ -4,7 +4,6 @@ import { ChevronDown, Package, Plus, X, XCircle } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Dimensions,
     Modal,
     Platform,
     ScrollView,
@@ -13,9 +12,9 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    useWindowDimensions,
 } from 'react-native';
 
-const { width } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -33,6 +32,8 @@ interface Vendor {
   id: string;
   legalCompanyName: string;
   tradeName?: string;
+  contactPersonEmail?: string;
+  contactPersonMobile?: string;
   products: VendorProduct[];
 }
 
@@ -67,6 +68,7 @@ const fmt = (n: number) =>
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function CreateOrderStepper({ visible, onClose }: Props) {
+  const { width } = useWindowDimensions();
   const [step, setStep] = useState(0);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
 
@@ -80,6 +82,21 @@ export default function CreateOrderStepper({ visible, onClose }: Props) {
   const [vendorDropdownOpen, setVendorDropdownOpen] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<Record<string, number>>({}); // productId → qty
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
+
+  // Notifications per vendor
+  const [vendorNotifications, setVendorNotifications] = useState<
+    Record<string, { email: boolean; whatsapp: boolean }>
+  >({});
+
+  const toggleNotification = (vendorId: string, channel: 'email' | 'whatsapp') =>
+    setVendorNotifications(prev => ({
+      ...prev,
+      [vendorId]: {
+        email: prev[vendorId]?.email ?? false,
+        whatsapp: prev[vendorId]?.whatsapp ?? false,
+        [channel]: !(prev[vendorId]?.[channel] ?? false),
+      },
+    }));
 
   // Submit
   const [submitting, setSubmitting] = useState(false);
@@ -167,19 +184,53 @@ export default function CreateOrderStepper({ visible, onClose }: Props) {
     setOrderItems([]);
     setAddPopupVisible(false);
     setSubmitError(null);
+    setVendorNotifications({});
     onClose();
   };
 
-  // ── Place order (stub — wire API when endpoint is ready) ──
+  // ── Place order ──
   const handlePlaceOrder = async () => {
     setSubmitting(true);
     setSubmitError(null);
     try {
       const token = await getToken();
-      // TODO: replace with real order endpoint
-      // await axios.post('http://localhost:8080/api/orders', { items: orderItems }, {
-      //   headers: { Authorization: `Bearer ${token}` },
-      // });
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+      // Group items by vendorId and post one order per vendor
+      const vendorIds = [...new Set(orderItems.map(i => i.vendorId))];
+      await Promise.all(
+        vendorIds.map(vendorId => {
+          const vendor = vendors.find(v => v.id === vendorId);
+          const items = orderItems.filter(i => i.vendorId === vendorId);
+          const vendorTotal = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+          const notifPrefs = vendorNotifications[vendorId];
+
+          const notifications: { email?: string; whatsapp?: string } = {};
+          if (notifPrefs?.email && vendor?.contactPersonEmail) {
+            notifications.email = vendor.contactPersonEmail;
+          }
+          if (notifPrefs?.whatsapp && vendor?.contactPersonMobile) {
+            notifications.whatsapp = vendor.contactPersonMobile;
+          }
+
+          const body: any = {
+            vendorId,
+            grandTotal: vendorTotal,
+            items: items.map(i => ({
+              productId: i.productId,
+              productName: i.productName,
+              quantity: i.quantity,
+              unitPrice: i.unitPrice,
+              totalPrice: i.unitPrice * i.quantity,
+            })),
+          };
+          if (Object.keys(notifications).length > 0) {
+            body.notifications = notifications;
+          }
+
+          return axios.post('http://localhost:8080/api/orders', body, { headers });
+        })
+      );
       handleClose();
     } catch (err: any) {
       setSubmitError(err?.response?.data?.message ?? err?.message ?? 'Failed to place order');
@@ -335,6 +386,52 @@ export default function CreateOrderStepper({ visible, onClose }: Props) {
                       </Text>
                     </View>
                   ))}
+                </View>
+
+                {/* ── Notification preferences per vendor ── */}
+                <Text style={[s.reviewHeading, { marginTop: 20 }]}>Notifications</Text>
+                <View style={{ gap: 8 }}>
+                  {[...new Set(orderItems.map(i => i.vendorId))].map(vendorId => {
+                    const vendor = vendors.find(v => v.id === vendorId);
+                    const notifPrefs = vendorNotifications[vendorId];
+                    return (
+                      <View key={vendorId} style={s.notifCard}>
+                        <Text style={s.notifVendorName}>
+                          {vendor?.legalCompanyName ?? vendorId}
+                        </Text>
+                        {/* Email checkbox */}
+                        <TouchableOpacity
+                          style={s.notifRow}
+                          onPress={() => toggleNotification(vendorId, 'email')}
+                          activeOpacity={0.8}>
+                          <View style={[s.checkbox, notifPrefs?.email && s.checkboxActive]}>
+                            {notifPrefs?.email && <Text style={s.checkmark}>✓</Text>}
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.notifLabel}>Email</Text>
+                            <Text style={s.notifValue} numberOfLines={1}>
+                              {vendor?.contactPersonEmail ?? 'Not available'}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                        {/* WhatsApp checkbox */}
+                        <TouchableOpacity
+                          style={s.notifRow}
+                          onPress={() => toggleNotification(vendorId, 'whatsapp')}
+                          activeOpacity={0.8}>
+                          <View style={[s.checkbox, notifPrefs?.whatsapp && s.checkboxActive]}>
+                            {notifPrefs?.whatsapp && <Text style={s.checkmark}>✓</Text>}
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.notifLabel}>WhatsApp</Text>
+                            <Text style={s.notifValue} numberOfLines={1}>
+                              {vendor?.contactPersonMobile ?? 'Not available'}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
                 </View>
 
                 {submitError && (
@@ -764,6 +861,22 @@ const s = StyleSheet.create({
     borderColor: '#fecaca',
   },
   errorBannerText: { fontSize: 13, color: '#dc2626', fontWeight: '600' },
+
+  // Notification checkboxes in review step
+  notifCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 4,
+    backgroundColor: '#f8fafc',
+    gap: 2,
+  },
+  notifVendorName: { fontSize: 12, fontWeight: '700', color: '#6366f1', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 },
+  notifRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 7, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
+  notifLabel: { fontSize: 13, fontWeight: '600', color: '#374151' },
+  notifValue: { fontSize: 12, color: '#64748b', marginTop: 1 },
 
   // ── Add-item popup ──
   popupOverlay: {

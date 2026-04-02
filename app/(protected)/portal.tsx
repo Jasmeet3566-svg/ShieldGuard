@@ -2,7 +2,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { useRouter } from 'expo-router';
 import {
+  Banknote,
+  BarChart3,
   Bell,
+  CalendarDays,
   CheckCircle,
   ChevronRight,
   Edit3,
@@ -10,14 +13,20 @@ import {
   MapPin,
   Menu,
   Minus,
+  Moon,
+  MoreVertical,
   Package,
   PanelLeft,
   Plus,
+  Receipt,
   Search,
   Settings,
+  Shield,
   ShieldAlert,
   ShieldCheck,
+  Shirt,
   Store,
+  Sun,
   User,
   UserPlus,
   Users,
@@ -28,11 +37,13 @@ import {
   ActivityIndicator,
   Dimensions, Modal,
   Platform,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View
 } from 'react-native';
 import Animated, { FadeInRight } from 'react-native-reanimated';
@@ -56,6 +67,15 @@ export default function PortalScreen() {
   const [usersExpanded, setUsersExpanded] = useState(false);
   const [employeesExpanded, setEmployeesExpanded] = useState(false);
   const [inventoryExpanded, setInventoryExpanded] = useState(false);
+  const [isDark, setIsDark] = useState(false);
+
+  const dk = isDark;
+  const darkShell = { backgroundColor: '#0f172a' } as const;
+  const darkSidebar = { backgroundColor: '#1e293b', borderRightColor: '#334155' } as const;
+  const darkHeader = { backgroundColor: '#1e293b', borderBottomColor: '#334155' } as const;
+  const darkHeaderTitle = { color: '#f1f5f9' } as const;
+  const darkNavLabel = { color: '#94a3b8' } as const;
+  const darkBrand = { color: '#f1f5f9' } as const;
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const [employees, setEmployees] = useState([
@@ -64,13 +84,70 @@ export default function PortalScreen() {
     { id: 'GD-1026', name: 'Mike Tyson', station: 'Warehouse', status: 'On Duty', joined: 'Jan 2026', fullName: 'Mike Tyson', assignedSite: 'Warehouse' },
   ]);
 
-  const { width: windowWidth } = Dimensions.get('window');
+  const { width: windowWidth } = useWindowDimensions();
   const isDesktop = windowWidth > 1024;
+  const isMobile = windowWidth < 640;
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   const { user, loading, logout } = useAuth();
+
+  // ── Role-based visibility ──────────────────────────────────────────────────
+  const userType = user?.userType ?? '';
+  const isMainAdmin = userType === 'MAIN_ADMIN';
+  const isAdmin     = userType === 'ADMIN';
+  const isOfficer   = userType === 'OFFICER';
+  const isGuard     = userType === 'GUARD';
+
+  // canSee(tab) returns true if current role is allowed to see that tab
+  const canSee = (tab: string): boolean => {
+    if (isGuard)   return tab === 'Alerts';
+    if (isOfficer) return !['Vendor', 'Create User', 'Users List', 'Billing', 'Reports'].includes(tab);
+    if (isAdmin)   return !['Vendor', 'Create User', 'Users List'].includes(tab);
+    return true; // MAIN_ADMIN sees everything
+  };
   const router = useRouter();
   const [showLogout, setShowLogout] = useState(false);
+
+  // ── Pending-approval vendors for dashboard notification ──
+  const [pendingVendors, setPendingVendors] = useState<any[]>([]);
+  const [vendorActionLoading, setVendorActionLoading] = useState<Record<string, 'APPROVED' | 'REJECTED' | null>>({});
+
+  const fetchPendingVendors = async () => {
+    try {
+      const token = Platform.OS === 'web'
+        ? localStorage.getItem('accessToken')
+        : await AsyncStorage.getItem('accessToken');
+      const res = await axios.get('http://localhost:8080/api/vendors?status=PENDING_APPROVAL', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPendingVendors(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      // silent — dashboard still works
+    }
+  };
+
+  const handleVendorStatus = async (vendorId: string, status: 'APPROVED' | 'REJECTED') => {
+    setVendorActionLoading(prev => ({ ...prev, [vendorId]: status }));
+    try {
+      const token = Platform.OS === 'web'
+        ? localStorage.getItem('accessToken')
+        : await AsyncStorage.getItem('accessToken');
+      await axios.patch(`http://localhost:8080/api/vendors/${vendorId}/status`,
+        { status },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setPendingVendors(prev => prev.filter(v => v.id !== vendorId));
+    } catch {
+      // keep row visible on error
+    } finally {
+      setVendorActionLoading(prev => ({ ...prev, [vendorId]: null }));
+    }
+  };
+
+  // Refresh pending vendors every time the Dashboard tab is opened
+  useEffect(() => {
+    if (activeTab === 'Dashboard') fetchPendingVendors();
+  }, [activeTab]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -81,9 +158,9 @@ export default function PortalScreen() {
   if (loading) return null;
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {(isDesktop || isSidebarOpen) && (
-        <View style={[styles.sidebar, isSidebarCollapsed && styles.sidebarCollapsed, !isDesktop && styles.mobileSidebar]}>
+        <View style={[styles.sidebar, isSidebarCollapsed && styles.sidebarCollapsed, !isDesktop && styles.mobileSidebar, dk && darkSidebar]}>
           {!isDesktop && (
             <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setIsSidebarOpen(false)} />
           )}
@@ -92,7 +169,7 @@ export default function PortalScreen() {
             {/* ── Header ── */}
             <View style={[styles.sidebarHeader, isSidebarCollapsed && styles.sidebarHeaderCollapsed]}>
               <ShieldAlert color="#7c3aed" size={22} />
-              {!isSidebarCollapsed && <Text style={styles.brandName}>ShieldGuard</Text>}
+              {!isSidebarCollapsed && <Text style={[styles.brandName, dk && darkBrand]}>ShieldGuard</Text>}
               <TouchableOpacity
                 style={[styles.collapseSidebarBtn, isSidebarCollapsed && { marginLeft: 0 }]}
                 onPress={() => setIsSidebarCollapsed(prev => !prev)}
@@ -102,24 +179,25 @@ export default function PortalScreen() {
             </View>
 
             {/* ── Nav ── */}
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
             <View style={styles.navItems}>
-              <NavItem icon={<LayoutDashboard size={16} />} label="Dashboard" active={activeTab === 'Dashboard'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Dashboard'); if (!isDesktop) setIsSidebarOpen(false); }} />
-              <NavItem icon={<Bell size={16} />} label="Alerts" active={activeTab === 'Alerts'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Alerts'); if (!isDesktop) setIsSidebarOpen(false); }} />
-              <NavItem icon={<Settings size={16} />} label="Settings" active={activeTab === 'Settings'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Settings'); if (!isDesktop) setIsSidebarOpen(false); }} />
-              <NavItem icon={<Store size={16} />} label="Vendor" active={activeTab === 'Vendor'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Vendor'); if (!isDesktop) setIsSidebarOpen(false); }} />
+              {canSee('Dashboard') && <NavItem icon={<LayoutDashboard size={16} />} label="Dashboard" active={activeTab === 'Dashboard'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Dashboard'); if (!isDesktop) setIsSidebarOpen(false); }} />}
+              {canSee('Alerts') && <NavItem icon={<Bell size={16} />} label="Alerts" active={activeTab === 'Alerts'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Alerts'); if (!isDesktop) setIsSidebarOpen(false); }} />}
+              {canSee('Settings') && <NavItem icon={<Settings size={16} />} label="Settings" active={activeTab === 'Settings'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Settings'); if (!isDesktop) setIsSidebarOpen(false); }} />}
+              {canSee('Vendor') && <NavItem icon={<Store size={16} />} label="Vendor" active={activeTab === 'Vendor'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Vendor'); if (!isDesktop) setIsSidebarOpen(false); }} />}
               {/* Expandable Inventory group */}
-              {isSidebarCollapsed ? (
+              {canSee('Stocks') && (isSidebarCollapsed ? (
                 <TouchableOpacity
-                  style={[styles.navItem, styles.navItemCollapsed, (activeTab === 'Stocks' || activeTab === 'Create Order' || activeTab === 'Order Placed') && styles.navItemActive]}
+                  style={[styles.navItem, styles.navItemCollapsed, (activeTab === 'Stocks' || activeTab === 'Create Order' || activeTab === 'Order Placed' || activeTab === 'Order History') && styles.navItemActive]}
                   onPress={() => { setIsSidebarCollapsed(false); setInventoryExpanded(true); }}
                   activeOpacity={0.7}>
-                  <Package size={16} color={(activeTab === 'Stocks' || activeTab === 'Create Order' || activeTab === 'Order Placed') ? '#111827' : '#6b7280'} />
+                  <Package size={16} color={(activeTab === 'Stocks' || activeTab === 'Create Order' || activeTab === 'Order Placed' || activeTab === 'Order History') ? '#111827' : '#6b7280'} />
                 </TouchableOpacity>
               ) : (
                 <>
                   <TouchableOpacity style={styles.navGroupRow} onPress={() => setInventoryExpanded(prev => !prev)} activeOpacity={0.7}>
-                    <View style={styles.navIcon}><Package size={16} color="#6b7280" /></View>
-                    <Text style={styles.navGroupLabel}>Inventory</Text>
+                    <View style={styles.navIcon}><Package size={16} color={dk ? '#94a3b8' : '#6b7280'} /></View>
+                    <Text style={[styles.navGroupLabel, dk && darkNavLabel]}>Inventory</Text>
                     {inventoryExpanded ? <Minus size={14} color="#9ca3af" /> : <Plus size={14} color="#9ca3af" />}
                   </TouchableOpacity>
                   {inventoryExpanded && (
@@ -133,13 +211,16 @@ export default function PortalScreen() {
                       <TouchableOpacity style={[styles.subNavItem, activeTab === 'Order Placed' && styles.subNavItemActive]} onPress={() => { setActiveTab('Order Placed'); if (!isDesktop) setIsSidebarOpen(false); }}>
                         <Text style={[styles.subNavLabel, activeTab === 'Order Placed' && styles.subNavLabelActive]}>Order Placed</Text>
                       </TouchableOpacity>
+                      <TouchableOpacity style={[styles.subNavItem, activeTab === 'Order History' && styles.subNavItemActive]} onPress={() => { setActiveTab('Order History'); if (!isDesktop) setIsSidebarOpen(false); }}>
+                        <Text style={[styles.subNavLabel, activeTab === 'Order History' && styles.subNavLabelActive]}>Order History</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
                 </>
-              )}
+              ))}
 
               {/* Expandable Employees group */}
-              {isSidebarCollapsed ? (
+              {canSee('Employees List') && (isSidebarCollapsed ? (
                 <TouchableOpacity
                   style={[styles.navItem, styles.navItemCollapsed, (activeTab === 'Create Employee' || activeTab === 'Employees List') && styles.navItemActive]}
                   onPress={() => { setIsSidebarCollapsed(false); setEmployeesExpanded(true); }}
@@ -149,8 +230,8 @@ export default function PortalScreen() {
               ) : (
                 <>
                   <TouchableOpacity style={styles.navGroupRow} onPress={() => setEmployeesExpanded(prev => !prev)} activeOpacity={0.7}>
-                    <View style={styles.navIcon}><Users size={16} color="#6b7280" /></View>
-                    <Text style={styles.navGroupLabel}>Employees</Text>
+                    <View style={styles.navIcon}><Users size={16} color={dk ? '#94a3b8' : '#6b7280'} /></View>
+                    <Text style={[styles.navGroupLabel, dk && darkNavLabel]}>Employees</Text>
                     {employeesExpanded ? <Minus size={14} color="#9ca3af" /> : <Plus size={14} color="#9ca3af" />}
                   </TouchableOpacity>
                   {employeesExpanded && (
@@ -164,10 +245,18 @@ export default function PortalScreen() {
                     </View>
                   )}
                 </>
-              )}
+              ))}
+
+              {/* ── New feature tabs ── */}
+              {canSee('Uniform Stock') && <NavItem icon={<Shirt size={16} />} label="Uniform Stock" active={activeTab === 'Uniform Stock'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Uniform Stock'); if (!isDesktop) setIsSidebarOpen(false); }} />}
+              {canSee('Attendance') && <NavItem icon={<CalendarDays size={16} />} label="Attendance" active={activeTab === 'Attendance'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Attendance'); if (!isDesktop) setIsSidebarOpen(false); }} />}
+              {canSee('Salary') && <NavItem icon={<Banknote size={16} />} label="Salary" active={activeTab === 'Salary'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Salary'); if (!isDesktop) setIsSidebarOpen(false); }} />}
+              {canSee('Billing') && <NavItem icon={<Receipt size={16} />} label="Billing" active={activeTab === 'Billing'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Billing'); if (!isDesktop) setIsSidebarOpen(false); }} />}
+              {canSee('Reports') && <NavItem icon={<BarChart3 size={16} />} label="Reports" active={activeTab === 'Reports'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Reports'); if (!isDesktop) setIsSidebarOpen(false); }} />}
+              {canSee('Admin') && <NavItem icon={<Shield size={16} />} label="Admin" active={activeTab === 'Admin'} collapsed={isSidebarCollapsed} onPress={() => { setActiveTab('Admin'); if (!isDesktop) setIsSidebarOpen(false); }} />}
 
               {/* Expandable Users group */}
-              {isSidebarCollapsed ? (
+              {canSee('Create User') && (isSidebarCollapsed ? (
                 <TouchableOpacity
                   style={[styles.navItem, styles.navItemCollapsed, (activeTab === 'Create User' || activeTab === 'Users List') && styles.navItemActive]}
                   onPress={() => { setIsSidebarCollapsed(false); setUsersExpanded(true); }}
@@ -177,8 +266,8 @@ export default function PortalScreen() {
               ) : (
                 <>
                   <TouchableOpacity style={styles.navGroupRow} onPress={() => setUsersExpanded(prev => !prev)} activeOpacity={0.7}>
-                    <View style={styles.navIcon}><UserPlus size={16} color="#6b7280" /></View>
-                    <Text style={styles.navGroupLabel}>Users</Text>
+                    <View style={styles.navIcon}><UserPlus size={16} color={dk ? '#94a3b8' : '#6b7280'} /></View>
+                    <Text style={[styles.navGroupLabel, dk && darkNavLabel]}>Users</Text>
                     {usersExpanded ? <Minus size={14} color="#9ca3af" /> : <Plus size={14} color="#9ca3af" />}
                   </TouchableOpacity>
                   {usersExpanded && (
@@ -192,8 +281,9 @@ export default function PortalScreen() {
                     </View>
                   )}
                 </>
-              )}
+              ))}
             </View>
+            </ScrollView>
 
             {/* ── Footer ── */}
             <View style={[styles.sidebarFooter, isSidebarCollapsed && styles.sidebarFooterCollapsed]}>
@@ -235,31 +325,46 @@ export default function PortalScreen() {
         </View>
       )}
 
-      <View style={styles.mainContent}>
-        <View style={styles.header}>
+      <View style={[styles.mainContent, dk && darkShell]}>
+        {isMobile && (
+          <View style={[styles.mobileLogoBar, dk && { backgroundColor: '#0f172a', borderBottomColor: '#1e293b' }]}>
+            <ShieldAlert color="#7c3aed" size={20} />
+            <Text style={[styles.mobileLogoBrand, dk && { color: '#e2e8f0' }]}>ShieldGuard</Text>
+          </View>
+        )}
+        <View style={[styles.header, dk && darkHeader, isMobile && { paddingHorizontal: 16, height: 60 }]}>
           <View style={styles.headerLeft}>
             {!isDesktop && (
               <TouchableOpacity style={styles.menuBtn} onPress={toggleSidebar}>
-                <Menu size={24} color="#64748b" />
+                <Menu size={24} color={dk ? '#94a3b8' : '#64748b'} />
               </TouchableOpacity>
             )}
-            <Text style={styles.headerTitle} numberOfLines={1}>{activeTab}</Text>
+            <Text style={[styles.headerTitle, dk && darkHeaderTitle, isMobile && { fontSize: 18 }]} numberOfLines={1}>{activeTab}</Text>
           </View>
           <View style={styles.headerRight}>
             {isDesktop && (
-              <View style={styles.searchBar}>
+              <View style={[styles.searchBar, dk && { backgroundColor: '#1e293b', borderColor: '#334155' }]}>
                 <Search size={18} color="#94a3b8" />
-                <Text style={styles.placeholderText}>Search dashboard...</Text>
+                <Text style={[styles.placeholderText, dk && { color: '#64748b' }]}>Search dashboard...</Text>
               </View>
             )}
+            {/* ── Dark mode toggle ── */}
+            <TouchableOpacity
+              onPress={() => setIsDark(prev => !prev)}
+              style={[styles.darkToggleBtn, dk && styles.darkToggleBtnActive]}
+              activeOpacity={0.8}>
+              {dk
+                ? <Sun size={17} color="#fbbf24" />
+                : <Moon size={17} color="#64748b" />}
+            </TouchableOpacity>
             <TouchableOpacity style={styles.notificationBtn}>
-              <Bell size={20} color="#64748b" />
+              <Bell size={20} color={dk ? '#94a3b8' : '#64748b'} />
               <View style={styles.badge} />
             </TouchableOpacity>
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollArea}>
+        <ScrollView style={dk && { backgroundColor: '#0f172a' }} contentContainerStyle={[styles.scrollArea, isMobile && { padding: 16 }]}>
           {activeTab === 'Dashboard' ? (
             <>
               <View style={styles.statsGrid}>
@@ -268,7 +373,54 @@ export default function PortalScreen() {
                 <StatCard label="Critical Alerts" value="12" trend="-2.4%" icon={<ShieldAlert color="#ef4444" />} color="#fef2f2" />
                 <StatCard label="Reports Today" value="156" trend="+18.8%" icon={<LayoutDashboard color="#3b82f6" />} color="#eff6ff" />
               </View>
-              <View style={styles.contentLayout}>
+
+              {/* ── ! Important Notifications ── */}
+              {pendingVendors.length > 0 && (
+                <View style={styles.importantNotifCard}>
+                  <View style={styles.importantNotifHeader}>
+                    <View style={styles.importantNotifBadge}>
+                      <Text style={styles.importantNotifBadgeText}>!</Text>
+                    </View>
+                    <Text style={styles.importantNotifTitle}>Important Notifications</Text>
+                    <View style={styles.importantNotifCount}>
+                      <Text style={styles.importantNotifCountText}>{pendingVendors.length}</Text>
+                    </View>
+                  </View>
+                  {pendingVendors.map((v: any, idx: number) => (
+                    <View key={v.id ?? idx} style={[styles.importantNotifRow, idx === pendingVendors.length - 1 && { borderBottomWidth: 0 }]}>
+                      <View style={styles.importantNotifDot} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.importantNotifVendorName}>{v.legalCompanyName ?? v.tradeName ?? 'Vendor'}</Text>
+                        <Text style={styles.importantNotifVendorSub}>
+                          {v.vendorType ? `${v.vendorType} · ` : ''}{v.gstin ? `GSTIN: ${v.gstin}` : 'Pending approval'}
+                        </Text>
+                      </View>
+                      {/* Approve / Reject action buttons */}
+                      <View style={styles.vendorActionBtns}>
+                        <TouchableOpacity
+                          style={styles.approveBtn}
+                          onPress={() => v.id && handleVendorStatus(v.id, 'APPROVED')}
+                          disabled={!!vendorActionLoading[v.id]}
+                          activeOpacity={0.8}>
+                          {vendorActionLoading[v.id] === 'APPROVED'
+                            ? <ActivityIndicator size="small" color="#fff" />
+                            : <Text style={styles.approveBtnText}>✓ Approve</Text>}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.rejectBtn}
+                          onPress={() => v.id && handleVendorStatus(v.id, 'REJECTED')}
+                          disabled={!!vendorActionLoading[v.id]}
+                          activeOpacity={0.8}>
+                          {vendorActionLoading[v.id] === 'REJECTED'
+                            ? <ActivityIndicator size="small" color="#fff" />
+                            : <Text style={styles.rejectBtnText}>✕ Reject</Text>}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+              <View style={[styles.contentLayout, windowWidth < 900 && { flexDirection: 'column' }]}>
                 <View style={styles.tableSection}>
                   <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>Recent Incidents</Text>
@@ -311,6 +463,20 @@ export default function PortalScreen() {
             <CreateOrderView />
           ) : activeTab === 'Order Placed' ? (
             <OrderPlacedView />
+          ) : activeTab === 'Order History' ? (
+            <OrderHistoryView />
+          ) : activeTab === 'Uniform Stock' ? (
+            <ComingSoonView icon={<Shirt size={48} color="#7c3aed" />} title="Uniform Stock Management" subtitle="Track, issue and manage employee uniforms and apparel inventory." />
+          ) : activeTab === 'Attendance' ? (
+            <ComingSoonView icon={<CalendarDays size={48} color="#0ea5e9" />} title="Attendance Management" subtitle="Monitor daily attendance, shifts, check-ins and leave requests." />
+          ) : activeTab === 'Salary' ? (
+            <ComingSoonView icon={<Banknote size={48} color="#10b981" />} title="Salary Management" subtitle="Process payroll, manage salary slips and track disbursements." />
+          ) : activeTab === 'Billing' ? (
+            <ComingSoonView icon={<Receipt size={48} color="#f59e0b" />} title="Billing & Receipts" subtitle="Generate bills, manage invoices and print receipts for clients." />
+          ) : activeTab === 'Reports' ? (
+            <ComingSoonView icon={<BarChart3 size={48} color="#6366f1" />} title="Reports & Analytics" subtitle="Business insights, performance metrics and exportable reports." />
+          ) : activeTab === 'Admin' ? (
+            <ComingSoonView icon={<Shield size={48} color="#ef4444" />} title="Admin Dashboard & User Roles" subtitle="Manage user accounts, assign roles and configure permissions." />
           ) : (
             <View style={styles.placeholderContainer}>
               <Text style={styles.placeholderText}>This {activeTab} section is coming soon!</Text>
@@ -341,17 +507,32 @@ export default function PortalScreen() {
           onEdit={(guard: any) => { setIsDetailsVisible(false); setEditingGuard(guard); setIsModalVisible(true); }}
         />
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 // ─── Small reusable UI components ────────────────────────────────────────────
 
-function NavItem({ icon, label, active, onPress }: any) {
+function ComingSoonView({ icon, title, subtitle }: { icon: React.ReactNode; title: string; subtitle: string }) {
   return (
-    <TouchableOpacity style={[styles.navItem, active && styles.navItemActive]} onPress={onPress} activeOpacity={0.7}>
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 16 }}>
+      <View style={{ width: 96, height: 96, borderRadius: 24, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, elevation: 4 }}>
+        {icon}
+      </View>
+      <Text style={{ fontSize: 22, fontWeight: '800', color: '#1e293b', textAlign: 'center', marginTop: 8 }}>{title}</Text>
+      <Text style={{ fontSize: 14, color: '#64748b', textAlign: 'center', maxWidth: 320, lineHeight: 22 }}>{subtitle}</Text>
+      <View style={{ marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' }}>
+        <Text style={{ fontSize: 13, fontWeight: '600', color: '#94a3b8', letterSpacing: 0.5 }}>Coming Soon</Text>
+      </View>
+    </View>
+  );
+}
+
+function NavItem({ icon, label, active, collapsed, onPress }: any) {
+  return (
+    <TouchableOpacity style={[styles.navItem, active && styles.navItemActive, collapsed && styles.navItemCollapsed]} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.navIcon}>{React.cloneElement(icon, { color: active ? '#111827' : '#6b7280' })}</View>
-      <Text style={[styles.navLabel, active && styles.navLabelActive]}>{label}</Text>
+      {!collapsed && <Text style={[styles.navLabel, active && styles.navLabelActive]}>{label}</Text>}
     </TouchableOpacity>
   );
 }
@@ -389,8 +570,8 @@ function TableRow({ id, guard, location, status, time }: any) {
   return (
     <View style={styles.tableRow}>
       <Text style={[styles.cellText, { flex: 0.5, color: '#94a3b8' }]}>{id}</Text>
-      <View style={styles.cellContainer}><View style={styles.smallAvatar} /><Text style={styles.cellTextBold}>{guard}</Text></View>
-      <Text style={styles.cellText}>{location}</Text>
+      <View style={styles.cellContainer}><View style={styles.smallAvatar} /><Text style={styles.cellTextBold} numberOfLines={1}>{guard}</Text></View>
+      <Text style={styles.cellText} numberOfLines={1}>{location}</Text>
       <View style={[styles.statusBadge, { backgroundColor: statusBg }]}><Text style={[styles.statusText, { color: statusColor }]}>{status}</Text></View>
       <Text style={styles.cellText}>{time}</Text>
     </View>
@@ -922,6 +1103,63 @@ function EmployeesListView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Three-dot menu
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [terminatingId, setTerminatingId] = useState<string | null>(null);
+
+  // Edit modal
+  const [editModalEmp, setEditModalEmp] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [editSaving, setEditSaving] = useState(false);
+
+  const openEditModal = (emp: any) => {
+    setMenuOpenId(null);
+    setEditForm({
+      name: emp.name ?? '',
+      phone: emp.phone ?? '',
+      designation: emp.designation ?? '',
+      grade: emp.grade ?? '',
+      assignedSite: emp.assignedSite ?? emp.station ?? '',
+      shift: emp.shift ?? '',
+    });
+    setEditModalEmp(emp);
+  };
+
+  const handleEditSave = async () => {
+    if (!editModalEmp) return;
+    const id = editModalEmp.employeeId ?? editModalEmp.id;
+    setEditSaving(true);
+    try {
+      const res = await API.put(`/api/employees/${id}`, editForm);
+      const updated = res.data ?? { ...editModalEmp, ...editForm };
+      setEmployeesList(prev =>
+        prev.map(e => (e.employeeId ?? e.id) === id ? { ...e, ...updated } : e)
+      );
+      setEditModalEmp(null);
+    } catch (err: any) {
+      alert(err?.response?.data?.message ?? 'Failed to update employee.');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleTerminate = async (emp: any) => {
+    const id = emp.employeeId ?? emp.id;
+    setMenuOpenId(null);
+    setTerminatingId(id);
+    try {
+      await API.patch(`/api/employees/${id}/status`, { status: 'TERMINATED' });
+      setEmployeesList(prev =>
+        prev.map(e => (e.employeeId ?? e.id) === id ? { ...e, status: 'TERMINATED' } : e)
+      );
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to terminate';
+      alert(msg);
+    } finally {
+      setTerminatingId(null);
+    }
+  };
+
   // Search by ID
   const [searchId, setSearchId] = useState('');
   const [searchResult, setSearchResult] = useState<any | null>(null);
@@ -986,25 +1224,41 @@ function EmployeesListView() {
   const statusBg = (s: string) =>
     s === 'ACTIVE' ? '#f0fdf4' : (s === 'INACTIVE' || s === 'TERMINATED') ? '#fef2f2' : '#fffbeb';
 
-  const renderRow = (emp: any, idx: number) => (
-    <View key={emp.id ?? emp.employeeId ?? idx} style={styles.userRow}>
-      <View style={styles.userAvatar}>
-        <Text style={styles.userAvatarText}>{emp.name?.[0]?.toUpperCase() ?? '?'}</Text>
+  const renderRow = (emp: any, idx: number) => {
+    const empId = emp.employeeId ?? emp.id ?? String(idx);
+    const isMenuOpen = menuOpenId === empId;
+    const isTerminating = terminatingId === empId;
+    return (
+      <View key={empId} style={styles.userRow}>
+        <View style={styles.userAvatar}>
+          <Text style={styles.userAvatarText}>{emp.name?.[0]?.toUpperCase() ?? '?'}</Text>
+        </View>
+        <View style={styles.userInfo}>
+          <Text style={styles.userNameText}>{emp.name}</Text>
+          <Text style={styles.userEmailText}>{emp.designation ?? emp.email ?? '—'}</Text>
+          {(emp.employeeId || emp.id) && (
+            <Text style={styles.empRowId}>ID: {emp.employeeId ?? emp.id}</Text>
+          )}
+        </View>
+        <View style={[styles.userStatusBadge, { backgroundColor: statusBg(emp.status ?? emp.formStatus ?? '') }]}>
+          <Text style={[styles.userStatusText, { color: statusColor(emp.status ?? emp.formStatus ?? '') }]}>
+            {emp.status ?? emp.formStatus ?? 'N/A'}
+          </Text>
+        </View>
+        {/* Three-dot menu */}
+        <View style={styles.empMenuWrapper}>
+          <TouchableOpacity
+            style={styles.empMenuBtn}
+            onPress={() => setMenuOpenId(isMenuOpen ? null : empId)}
+            activeOpacity={0.7}>
+            {isTerminating
+              ? <ActivityIndicator size="small" color="#94a3b8" />
+              : <MoreVertical size={18} color="#94a3b8" />}
+          </TouchableOpacity>
+        </View>
       </View>
-      <View style={styles.userInfo}>
-        <Text style={styles.userNameText}>{emp.name}</Text>
-        <Text style={styles.userEmailText}>{emp.designation ?? emp.email ?? '—'}</Text>
-        {(emp.employeeId || emp.id) && (
-          <Text style={styles.empRowId}>ID: {emp.employeeId ?? emp.id}</Text>
-        )}
-      </View>
-      <View style={[styles.userStatusBadge, { backgroundColor: statusBg(emp.status ?? emp.formStatus ?? '') }]}>
-        <Text style={[styles.userStatusText, { color: statusColor(emp.status ?? emp.formStatus ?? '') }]}>
-          {emp.status ?? emp.formStatus ?? 'N/A'}
-        </Text>
-      </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={styles.usersContainer}>
@@ -1012,6 +1266,84 @@ function EmployeesListView() {
         <Text style={styles.usersTitle}>Employees</Text>
         <Text style={styles.usersSubtitle}>{employees.length} employee{employees.length !== 1 ? 's' : ''} found</Text>
       </View>
+
+      {/* ── Three-dot Dropdown Modal ── */}
+      <Modal
+        visible={!!menuOpenId}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuOpenId(null)}>
+        <TouchableOpacity style={styles.empDropdownBackdrop} activeOpacity={1} onPress={() => setMenuOpenId(null)}>
+          <View style={styles.empDropdownCard}>
+            <TouchableOpacity
+              style={styles.empMenuItem}
+              onPress={() => {
+                const emp = employees.find(e => (e.employeeId ?? e.id) === menuOpenId);
+                if (emp) openEditModal(emp);
+                else setMenuOpenId(null);
+              }}
+              activeOpacity={0.8}>
+              <Text style={styles.empMenuItemText}>Edit</Text>
+            </TouchableOpacity>
+            <View style={styles.empMenuDivider} />
+            <TouchableOpacity
+              style={styles.empMenuItemDanger}
+              onPress={() => {
+                const emp = employees.find(e => (e.employeeId ?? e.id) === menuOpenId);
+                if (emp) handleTerminate(emp);
+                else setMenuOpenId(null);
+              }}
+              activeOpacity={0.8}>
+              <Text style={styles.empMenuItemDangerText}>Terminate</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Edit Employee Modal ── */}
+      <Modal visible={!!editModalEmp} transparent animationType="fade" onRequestClose={() => setEditModalEmp(null)}>
+        <View style={styles.empEditOverlay}>
+          <View style={styles.empEditModal}>
+            <View style={styles.empEditHeader}>
+              <Text style={styles.empEditTitle}>Edit Employee</Text>
+              <TouchableOpacity onPress={() => setEditModalEmp(null)} style={{ padding: 4 }}>
+                <XCircle size={20} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ gap: 14, paddingBottom: 8 }} keyboardShouldPersistTaps="handled">
+              {([
+                ['name', 'Full Name'],
+                ['phone', 'Phone'],
+                ['designation', 'Designation'],
+                ['grade', 'Grade'],
+                ['assignedSite', 'Assigned Site'],
+                ['shift', 'Shift'],
+              ] as [string, string][]).map(([key, label]) => (
+                <View key={key}>
+                  <Text style={styles.empEditLabel}>{label}</Text>
+                  <TextInput
+                    style={styles.empEditInput}
+                    value={editForm[key]}
+                    onChangeText={val => setEditForm(prev => ({ ...prev, [key]: val }))}
+                    placeholder={label}
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+              ))}
+            </ScrollView>
+            <View style={styles.empEditFooter}>
+              <TouchableOpacity style={styles.empEditCancelBtn} onPress={() => setEditModalEmp(null)} activeOpacity={0.8}>
+                <Text style={styles.empEditCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.empEditSaveBtn} onPress={handleEditSave} disabled={editSaving} activeOpacity={0.85}>
+                {editSaving
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={styles.empEditSaveText}>Save Changes</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── Search by Employee ID ── */}
       <View style={styles.empSearchRow}>
@@ -1119,11 +1451,68 @@ function EmployeesListView() {
 // ─── VendorView ───────────────────────────────────────────────────────────────
 
 function VendorView() {
+  const { width: vw } = useWindowDimensions();
   const [vendors, setVendors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showStepper, setShowStepper] = useState(false);
   const [selected, setSelected] = useState<any | null>(null);
+
+  // ── Edit state ──
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const openEdit = () => {
+    if (!selected) return;
+    setEditForm({
+      legalCompanyName: selected.legalCompanyName ?? '',
+      tradeName: selected.tradeName ?? '',
+      registeredAddress: selected.registeredAddress ?? '',
+      city: selected.city ?? '',
+      state: selected.state ?? '',
+      pincode: selected.pincode ?? '',
+      contactPersonName: selected.contactPersonName ?? '',
+      contactPersonMobile: selected.contactPersonMobile ?? '',
+      contactPersonEmail: selected.contactPersonEmail ?? '',
+      companyLandline: selected.companyLandline ?? '',
+      bankAccountNumber: selected.bankAccountNumber ?? '',
+      ifscCode: selected.ifscCode ?? '',
+      beneficiaryName: selected.beneficiaryName ?? '',
+      paymentTerms: selected.paymentTerms ?? '',
+    });
+    setEditError(null);
+    setIsEditing(true);
+  };
+
+  const cancelEdit = () => { setIsEditing(false); setEditError(null); };
+
+  const handleSave = async () => {
+    if (!selected?.id) return;
+    setEditLoading(true);
+    setEditError(null);
+    try {
+      const token = Platform.OS === 'web'
+        ? localStorage.getItem('accessToken')
+        : await AsyncStorage.getItem('accessToken');
+      const res = await axios.patch(
+        `http://localhost:8080/api/vendors/${selected.id}`,
+        editForm,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const updated = res.data ?? { ...selected, ...editForm };
+      setSelected(updated);
+      setVendors(prev => prev.map(v => v.id === selected.id ? updated : v));
+      setIsEditing(false);
+    } catch (err: any) {
+      setEditError(err?.response?.data?.message ?? 'Failed to save changes');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const ef = (key: string) => (val: string) => setEditForm(prev => ({ ...prev, [key]: val }));
 
   const fetchVendors = async () => {
     setLoading(true);
@@ -1196,8 +1585,8 @@ function VendorView() {
         </View>
       ) : (
         <View style={styles.vendorTableWrap}>
-          {/* Table header */}
-          <View style={styles.vendorTableHeader}>
+            {/* Table header */}
+            <View style={styles.vendorTableHeader}>
             <Text style={[styles.vendorTH, { flex: 1.2 }]}>Type</Text>
             <Text style={[styles.vendorTH, { flex: 2.5 }]}>Legal Name</Text>
             <Text style={[styles.vendorTH, { flex: 2 }]}>Trade Name</Text>
@@ -1244,9 +1633,10 @@ function VendorView() {
       )}
 
       {/* Detail modal */}
-      <Modal visible={!!selected} transparent animationType="fade" onRequestClose={() => setSelected(null)}>
+      <Modal visible={!!selected} transparent animationType="fade" onRequestClose={() => { cancelEdit(); setSelected(null); }}>
         <View style={styles.stockDetailOverlay}>
-          <View style={[styles.stockDetailModal, { width: isWeb ? 620 : width - 24 }]}>
+          <View style={[styles.stockDetailModal, { width: isWeb ? 640 : vw - 24 }]}>
+            {/* Header */}
             <View style={styles.stockDetailHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.stockDetailTitle}>{selected?.legalCompanyName}</Text>
@@ -1255,93 +1645,190 @@ function VendorView() {
                   {selected?.tradeName ? ` · ${selected.tradeName}` : ''}
                 </Text>
               </View>
-              <TouchableOpacity onPress={() => setSelected(null)} hitSlop={8}
+              {/* Edit toggle */}
+              {!isEditing && (
+                <TouchableOpacity onPress={openEdit} hitSlop={8}
+                  style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#eef2ff', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                  <Edit3 size={15} color="#6366f1" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={() => { cancelEdit(); setSelected(null); }} hitSlop={8}
                 style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}>
                 <XCircle size={18} color="#64748b" />
               </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: isWeb ? 520 : '80%' }}>
-              {/* Business */}
-              <View style={styles.vendorDetailSection}>
-                <Text style={styles.vendorDetailSectionTitle}>Business Information</Text>
-                {[
-                  ['GSTIN', selected?.gstin],
-                  ['PAN', selected?.pan],
-                  ['MSME Number', selected?.msmeNumber],
-                  ['Address', [selected?.registeredAddress, selected?.city, selected?.state].filter(Boolean).join(', ')],
-                  ['Pincode', selected?.pincode],
-                  ['Status', selected?.status?.replace(/_/g, ' ')],
-                  ['Payment Terms', selected?.paymentTerms?.replace(/_/g, ' ')],
-                ].map(([label, value]) => value ? (
-                  <View key={label as string} style={styles.stockDetailRow}>
-                    <Text style={styles.stockDetailLabel}>{label}</Text>
-                    <Text style={styles.stockDetailValue}>{value as string}</Text>
-                  </View>
-                ) : null)}
-              </View>
-
-              {/* Contact */}
-              <View style={styles.vendorDetailSection}>
-                <Text style={styles.vendorDetailSectionTitle}>Contact Details</Text>
-                {[
-                  ['Name', selected?.contactPersonName],
-                  ['Mobile', selected?.contactPersonMobile],
-                  ['Email', selected?.contactPersonEmail],
-                  ['Landline', selected?.companyLandline],
-                ].map(([label, value]) => value ? (
-                  <View key={label as string} style={styles.stockDetailRow}>
-                    <Text style={styles.stockDetailLabel}>{label}</Text>
-                    <Text style={styles.stockDetailValue}>{value as string}</Text>
-                  </View>
-                ) : null)}
-              </View>
-
-              {/* Banking */}
-              <View style={styles.vendorDetailSection}>
-                <Text style={styles.vendorDetailSectionTitle}>Banking</Text>
-                {[
-                  ['Account Number', selected?.bankAccountNumber],
-                  ['IFSC Code', selected?.ifscCode],
-                  ['Beneficiary', selected?.beneficiaryName],
-                ].map(([label, value]) => value ? (
-                  <View key={label as string} style={styles.stockDetailRow}>
-                    <Text style={styles.stockDetailLabel}>{label}</Text>
-                    <Text style={styles.stockDetailValue}>{value as string}</Text>
-                  </View>
-                ) : null)}
-              </View>
-
-              {/* Products */}
-              {selected?.products?.length > 0 && (
-                <View style={styles.vendorDetailSection}>
-                  <Text style={styles.vendorDetailSectionTitle}>Products ({selected.products.length})</Text>
-                  <View style={styles.vendorProdTableHeader}>
-                    <Text style={[styles.vendorProdTH, { flex: 2.5 }]}>Product</Text>
-                    <Text style={[styles.vendorProdTH, { flex: 1.5 }]}>Category</Text>
-                    <Text style={[styles.vendorProdTH, { flex: 1.2, textAlign: 'right' }]}>Price</Text>
-                    <Text style={[styles.vendorProdTH, { flex: 0.8, textAlign: 'right' }]}>Unit</Text>
-                  </View>
-                  {selected.products.map((p: any) => (
-                    <View key={p.id} style={styles.vendorProdRow}>
-                      <View style={{ flex: 2.5 }}>
-                        <Text style={styles.vendorProdName} numberOfLines={1}>{p.productName}</Text>
-                        {p.description ? <Text style={styles.vendorProdDesc} numberOfLines={1}>{p.description}</Text> : null}
-                      </View>
-                      <Text style={[styles.vendorProdTD, { flex: 1.5 }]} numberOfLines={1}>
-                        {p.productCategory?.replace(/_/g, ' ')}
-                      </Text>
-                      <Text style={[styles.vendorProdTD, styles.vendorProdPrice, { flex: 1.2 }]}>
-                        ₹{Number(p.unitPrice).toLocaleString('en-IN')}
-                      </Text>
-                      <Text style={[styles.vendorProdTD, { flex: 0.8, textAlign: 'right' }]}>
-                        {p.unit}
-                      </Text>
+              {/* ── EDIT MODE ── */}
+              {isEditing ? (
+                <View style={{ padding: 20, gap: 14 }}>
+                  <Text style={styles.vendorDetailSectionTitle}>Business Information</Text>
+                  {([
+                    ['Legal Company Name', 'legalCompanyName'],
+                    ['Trade Name', 'tradeName'],
+                    ['Registered Address', 'registeredAddress'],
+                    ['City', 'city'],
+                    ['State', 'state'],
+                    ['Pincode', 'pincode'],
+                    ['Payment Terms', 'paymentTerms'],
+                  ] as [string, string][]).map(([label, key]) => (
+                    <View key={key}>
+                      <Text style={styles.vendorEditLabel}>{label}</Text>
+                      <TextInput
+                        style={styles.vendorEditInput}
+                        value={editForm[key] ?? ''}
+                        onChangeText={ef(key)}
+                        placeholder={label}
+                        placeholderTextColor="#cbd5e1"
+                      />
                     </View>
                   ))}
+
+                  <Text style={[styles.vendorDetailSectionTitle, { marginTop: 8 }]}>Contact Details</Text>
+                  {([
+                    ['Contact Name', 'contactPersonName'],
+                    ['Mobile', 'contactPersonMobile'],
+                    ['Email', 'contactPersonEmail'],
+                    ['Landline', 'companyLandline'],
+                  ] as [string, string][]).map(([label, key]) => (
+                    <View key={key}>
+                      <Text style={styles.vendorEditLabel}>{label}</Text>
+                      <TextInput
+                        style={styles.vendorEditInput}
+                        value={editForm[key] ?? ''}
+                        onChangeText={ef(key)}
+                        placeholder={label}
+                        placeholderTextColor="#cbd5e1"
+                        keyboardType={key === 'contactPersonEmail' ? 'email-address' : key.includes('Mobile') || key.includes('Landline') ? 'phone-pad' : 'default'}
+                        autoCapitalize="none"
+                      />
+                    </View>
+                  ))}
+
+                  <Text style={[styles.vendorDetailSectionTitle, { marginTop: 8 }]}>Banking</Text>
+                  {([
+                    ['Account Number', 'bankAccountNumber'],
+                    ['IFSC Code', 'ifscCode'],
+                    ['Beneficiary Name', 'beneficiaryName'],
+                  ] as [string, string][]).map(([label, key]) => (
+                    <View key={key}>
+                      <Text style={styles.vendorEditLabel}>{label}</Text>
+                      <TextInput
+                        style={styles.vendorEditInput}
+                        value={editForm[key] ?? ''}
+                        onChangeText={ef(key)}
+                        placeholder={label}
+                        placeholderTextColor="#cbd5e1"
+                        autoCapitalize="characters"
+                      />
+                    </View>
+                  ))}
+
+                  {editError && (
+                    <View style={{ backgroundColor: '#fef2f2', borderRadius: 8, padding: 12, borderWidth: 1, borderColor: '#fecaca' }}>
+                      <Text style={{ color: '#dc2626', fontSize: 13, fontWeight: '600' }}>{editError}</Text>
+                    </View>
+                  )}
                 </View>
+              ) : (
+                /* ── READ MODE ── */
+                <>
+                  {/* Business */}
+                  <View style={styles.vendorDetailSection}>
+                    <Text style={styles.vendorDetailSectionTitle}>Business Information</Text>
+                    {[
+                      ['GSTIN', selected?.gstin],
+                      ['PAN', selected?.pan],
+                      ['MSME Number', selected?.msmeNumber],
+                      ['Address', [selected?.registeredAddress, selected?.city, selected?.state].filter(Boolean).join(', ')],
+                      ['Pincode', selected?.pincode],
+                      ['Status', selected?.status?.replace(/_/g, ' ')],
+                      ['Payment Terms', selected?.paymentTerms?.replace(/_/g, ' ')],
+                    ].map(([label, value]) => value ? (
+                      <View key={label as string} style={styles.stockDetailRow}>
+                        <Text style={styles.stockDetailLabel}>{label}</Text>
+                        <Text style={styles.stockDetailValue}>{value as string}</Text>
+                      </View>
+                    ) : null)}
+                  </View>
+
+                  {/* Contact */}
+                  <View style={styles.vendorDetailSection}>
+                    <Text style={styles.vendorDetailSectionTitle}>Contact Details</Text>
+                    {[
+                      ['Name', selected?.contactPersonName],
+                      ['Mobile', selected?.contactPersonMobile],
+                      ['Email', selected?.contactPersonEmail],
+                      ['Landline', selected?.companyLandline],
+                    ].map(([label, value]) => value ? (
+                      <View key={label as string} style={styles.stockDetailRow}>
+                        <Text style={styles.stockDetailLabel}>{label}</Text>
+                        <Text style={styles.stockDetailValue}>{value as string}</Text>
+                      </View>
+                    ) : null)}
+                  </View>
+
+                  {/* Banking */}
+                  <View style={styles.vendorDetailSection}>
+                    <Text style={styles.vendorDetailSectionTitle}>Banking</Text>
+                    {[
+                      ['Account Number', selected?.bankAccountNumber],
+                      ['IFSC Code', selected?.ifscCode],
+                      ['Beneficiary', selected?.beneficiaryName],
+                    ].map(([label, value]) => value ? (
+                      <View key={label as string} style={styles.stockDetailRow}>
+                        <Text style={styles.stockDetailLabel}>{label}</Text>
+                        <Text style={styles.stockDetailValue}>{value as string}</Text>
+                      </View>
+                    ) : null)}
+                  </View>
+
+                  {/* Products */}
+                  {selected?.products?.length > 0 && (
+                    <View style={styles.vendorDetailSection}>
+                      <Text style={styles.vendorDetailSectionTitle}>Products ({selected.products.length})</Text>
+                      <View style={styles.vendorProdTableHeader}>
+                        <Text style={[styles.vendorProdTH, { flex: 2.5 }]}>Product</Text>
+                        <Text style={[styles.vendorProdTH, { flex: 1.5 }]}>Category</Text>
+                        <Text style={[styles.vendorProdTH, { flex: 1.2, textAlign: 'right' }]}>Price</Text>
+                        <Text style={[styles.vendorProdTH, { flex: 0.8, textAlign: 'right' }]}>Unit</Text>
+                      </View>
+                      {selected.products.map((p: any) => (
+                        <View key={p.id} style={styles.vendorProdRow}>
+                          <View style={{ flex: 2.5 }}>
+                            <Text style={styles.vendorProdName} numberOfLines={1}>{p.productName}</Text>
+                            {p.description ? <Text style={styles.vendorProdDesc} numberOfLines={1}>{p.description}</Text> : null}
+                          </View>
+                          <Text style={[styles.vendorProdTD, { flex: 1.5 }]} numberOfLines={1}>
+                            {p.productCategory?.replace(/_/g, ' ')}
+                          </Text>
+                          <Text style={[styles.vendorProdTD, styles.vendorProdPrice, { flex: 1.2 }]}>
+                            ₹{Number(p.unitPrice).toLocaleString('en-IN')}
+                          </Text>
+                          <Text style={[styles.vendorProdTD, { flex: 0.8, textAlign: 'right' }]}>
+                            {p.unit}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </>
               )}
             </ScrollView>
+
+            {/* Edit mode footer */}
+            {isEditing && (
+              <View style={styles.vendorEditFooter}>
+                <TouchableOpacity style={styles.vendorEditCancelBtn} onPress={cancelEdit} disabled={editLoading}>
+                  <Text style={styles.vendorEditCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.vendorEditSaveBtn, editLoading && { opacity: 0.6 }]} onPress={handleSave} disabled={editLoading} activeOpacity={0.85}>
+                  {editLoading
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={styles.vendorEditSaveText}>Save Changes</Text>}
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -1384,6 +1871,104 @@ function CreateOrderView() {
 }
 
 function OrderPlacedView() {
+  const { width: vw } = useWindowDimensions();
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<any | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  // Delivery update popup
+  const [deliveryOrder, setDeliveryOrder] = useState<any | null>(null);
+  const [deliveryType, setDeliveryType] = useState('FULL');
+  const [deliveryLoading, setDeliveryLoading] = useState(false);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
+
+  const getToken = async () =>
+    Platform.OS === 'web'
+      ? localStorage.getItem('accessToken')
+      : AsyncStorage.getItem('accessToken');
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const token = await getToken();
+        const res = await axios.get('http://localhost:8080/api/orders', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const all = Array.isArray(res.data) ? res.data : res.data?.orders ?? [];
+        // Show only non-delivered orders; delivered ones go to Order History
+        setOrders(all.filter((o: any) => o.status !== 'DELIVERED'));
+      } catch (err: any) {
+        setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load orders');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const handleMarkDelivered = async () => {
+    if (!deliveryOrder) return;
+    setDeliveryLoading(true);
+    setDeliveryError(null);
+    try {
+      const token = await getToken();
+      await axios.patch(
+        `http://localhost:8080/api/orders/${deliveryOrder.id}/delivery`,
+        { deliveryType },
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+      );
+      // Move out of this list — now lives in Order History
+      setOrders(prev => prev.filter(o => o.id !== deliveryOrder.id));
+      setDeliveryOrder(null);
+    } catch (err: any) {
+      setDeliveryError(err?.response?.data?.message ?? err?.message ?? 'Failed to update delivery status');
+    } finally {
+      setDeliveryLoading(false);
+    }
+  };
+
+  const openDetail = async (order: any) => {
+    setSelected({ ...order, _loading: true });
+    setDetailLoading(true);
+    setDetailError(null);
+    try {
+      const token = await getToken();
+      const res = await axios.get(`http://localhost:8080/api/orders/${order.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setSelected(res.data);
+    } catch (err: any) {
+      setDetailError(err?.response?.data?.message ?? 'Failed to load order details');
+      setSelected(order);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const statusColor = (s: string) => {
+    if (!s) return '#64748b';
+    if (s === 'DELIVERED') return '#10b981';
+    if (s === 'CONFIRMED') return '#3b82f6';
+    if (s === 'PENDING') return '#f59e0b';
+    if (s === 'CANCELLED' || s === 'REJECTED') return '#ef4444';
+    return '#64748b';
+  };
+  const statusBg = (s: string) => {
+    if (!s) return '#f8fafc';
+    if (s === 'DELIVERED') return '#f0fdf4';
+    if (s === 'CONFIRMED') return '#eff6ff';
+    if (s === 'PENDING') return '#fffbeb';
+    if (s === 'CANCELLED' || s === 'REJECTED') return '#fef2f2';
+    return '#f8fafc';
+  };
+  const fmt = (n: number) =>
+    n?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? '—';
+
   return (
     <View style={styles.stocksContainer}>
       <View style={styles.stocksHeader}>
@@ -1392,16 +1977,435 @@ function OrderPlacedView() {
           <Text style={styles.stocksSubtitle}>History of all purchase orders.</Text>
         </View>
       </View>
-      <View style={[styles.stocksEmptyBox, { marginTop: 40 }]}>
-        <Package size={40} color="#cbd5e1" />
-        <Text style={styles.stocksEmptyText}>No orders yet</Text>
-        <Text style={{ fontSize: 13, color: '#94a3b8' }}>Placed orders will appear here.</Text>
+
+      {loading ? (
+        <View style={styles.usersCenter}><ActivityIndicator size="large" color="#6366f1" /></View>
+      ) : error ? (
+        <View style={styles.usersCenter}><Text style={styles.usersError}>{error}</Text></View>
+      ) : orders.length === 0 ? (
+        <View style={[styles.stocksEmptyBox, { marginTop: 40 }]}>
+          <Package size={40} color="#cbd5e1" />
+          <Text style={styles.stocksEmptyText}>No orders yet</Text>
+          <Text style={{ fontSize: 13, color: '#94a3b8' }}>Placed orders will appear here.</Text>
+        </View>
+      ) : (
+        <View style={styles.ordersTable}>
+          {/* Table header */}
+          <View style={styles.ordersTableHeader}>
+            <Text style={[styles.ordersTH, { flex: 2 }]}>Order ID</Text>
+            <Text style={[styles.ordersTH, { flex: 2.5 }]}>Vendor</Text>
+            <Text style={[styles.ordersTH, { flex: 1.5 }]}>Date</Text>
+            <Text style={[styles.ordersTH, { flex: 1.2 }]}>Items</Text>
+            <Text style={[styles.ordersTH, { flex: 1.5, textAlign: 'right' }]}>Total</Text>
+            <Text style={[styles.ordersTH, { flex: 1.5 }]}>Status</Text>
+            <Text style={[styles.ordersTH, { flex: 2.5 }]}>Actions</Text>
+          </View>
+          {orders.map((o: any, idx: number) => {
+            const canUpdate = o.status !== 'DELIVERED' && o.status !== 'CANCELLED' && o.status !== 'REJECTED';
+            return (
+              <View key={o.id ?? idx} style={[styles.ordersTR, idx % 2 === 1 && styles.ordersTRAlt]}>
+                <Text style={[styles.ordersTDMono, { flex: 2 }]} numberOfLines={1}>
+                  {o.id ? `#${o.id.slice(0, 8).toUpperCase()}` : '—'}
+                </Text>
+                <Text style={[styles.ordersTD, { flex: 2.5, fontWeight: '700', color: '#1e293b' }]} numberOfLines={1}>
+                  {o.vendorName ?? '—'}
+                </Text>
+                <Text style={[styles.ordersTD, { flex: 1.5 }]}>
+                  {o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-IN') : '—'}
+                </Text>
+                <Text style={[styles.ordersTD, { flex: 1.2 }]}>
+                  {o.items?.length ?? o.itemCount ?? '—'}
+                </Text>
+                <Text style={[styles.ordersTD, { flex: 1.5, textAlign: 'right', fontWeight: '700', color: '#10b981' }]}>
+                  ₹{fmt(o.grandTotal ?? o.totalAmount ?? 0)}
+                </Text>
+                <View style={{ flex: 1.5 }}>
+                  <View style={[styles.ordersStatusBadge, { backgroundColor: statusBg(o.status) }]}>
+                    <Text style={[styles.ordersStatusText, { color: statusColor(o.status) }]}>
+                      {o.status ?? '—'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ flex: 2.5, flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                  <TouchableOpacity onPress={() => openDetail(o)} activeOpacity={0.8}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#6366f1' }}>Details</Text>
+                  </TouchableOpacity>
+                  {canUpdate && (
+                    <TouchableOpacity
+                      style={styles.updateDeliveryBtn}
+                      onPress={() => { setDeliveryOrder(o); setDeliveryType('FULL'); setDeliveryError(null); }}
+                      activeOpacity={0.85}>
+                      <Text style={styles.updateDeliveryBtnText}>Update Status</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
+      {/* ── Detail Modal ── */}
+      <Modal visible={!!selected} transparent animationType="fade" onRequestClose={() => setSelected(null)}>
+        <View style={styles.stockDetailOverlay}>
+          <View style={[styles.stockDetailModal, { width: isWeb ? 640 : vw - 24 }]}>
+            {/* Header */}
+            <View style={styles.stockDetailHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.stockDetailTitle}>
+                  {selected?.id ? `Order #${selected.id.slice(0, 8).toUpperCase()}` : 'Order Details'}
+                </Text>
+                <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                  {selected?.vendorName ?? ''}
+                  {selected?.createdAt ? `  ·  ${new Date(selected.createdAt).toLocaleString('en-IN')}` : ''}
+                </Text>
+              </View>
+              {selected?.status && (
+                <View style={[styles.ordersStatusBadge, { backgroundColor: statusBg(selected.status), marginRight: 10 }]}>
+                  <Text style={[styles.ordersStatusText, { color: statusColor(selected.status) }]}>{selected.status}</Text>
+                </View>
+              )}
+              <TouchableOpacity onPress={() => setSelected(null)} hitSlop={8}
+                style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}>
+                <XCircle size={18} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: isWeb ? 520 : '80%' }} showsVerticalScrollIndicator={false}>
+              {detailLoading ? (
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color="#6366f1" />
+                  <Text style={{ marginTop: 12, color: '#94a3b8', fontSize: 13 }}>Loading order details…</Text>
+                </View>
+              ) : detailError ? (
+                <View style={{ padding: 20 }}>
+                  <Text style={{ color: '#ef4444', fontSize: 13 }}>{detailError}</Text>
+                </View>
+              ) : (
+                <>
+                  {/* Summary rows */}
+                  {[
+                    ['Order ID', selected?.id],
+                    ['Vendor', selected?.vendorName],
+                    ['Created', selected?.createdAt ? new Date(selected.createdAt).toLocaleString('en-IN') : null],
+                    ['Grand Total', selected?.grandTotal != null ? `₹${fmt(selected.grandTotal)}` : selected?.totalAmount != null ? `₹${fmt(selected.totalAmount)}` : null],
+                    ['Notification — Email', selected?.notificationsSent?.includes('EMAIL') ? 'Sent ✓' : null],
+                    ['Notification — WhatsApp', selected?.notificationsSent?.includes('WHATSAPP') ? 'Sent ✓' : null],
+                  ].filter(([, v]) => v).map(([label, value]) => (
+                    <View key={label as string} style={styles.stockDetailRow}>
+                      <Text style={styles.stockDetailLabel}>{label}</Text>
+                      <Text style={styles.stockDetailValue}>{value as string}</Text>
+                    </View>
+                  ))}
+
+                  {/* Items sub-table */}
+                  {(selected?.items?.length > 0) && (
+                    <>
+                      <View style={[styles.ordersDetailSectionTitle]}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#6366f1', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                          Items ({selected.items.length})
+                        </Text>
+                      </View>
+                      <View style={styles.ordersItemHeader}>
+                        <Text style={[styles.ordersTH, { flex: 2.5 }]}>Product</Text>
+                        <Text style={[styles.ordersTH, { flex: 1 }]}>Qty</Text>
+                        <Text style={[styles.ordersTH, { flex: 1.2 }]}>Unit Price</Text>
+                        <Text style={[styles.ordersTH, { flex: 1.2, textAlign: 'right' }]}>Total</Text>
+                      </View>
+                      {selected.items.map((item: any, idx: number) => (
+                        <View key={item.id ?? idx} style={[styles.ordersTR, idx % 2 === 1 && styles.ordersTRAlt]}>
+                          <View style={{ flex: 2.5 }}>
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: '#1e293b' }} numberOfLines={1}>{item.productName ?? '—'}</Text>
+                            {item.productCategory ? <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{item.productCategory}</Text> : null}
+                          </View>
+                          <Text style={[styles.ordersTD, { flex: 1 }]}>{item.quantity} {item.unit ?? ''}</Text>
+                          <Text style={[styles.ordersTD, { flex: 1.2 }]}>₹{fmt(item.unitPrice)}</Text>
+                          <Text style={[styles.ordersTD, { flex: 1.2, textAlign: 'right', fontWeight: '700', color: '#10b981' }]}>
+                            ₹{fmt(item.totalPrice ?? item.unitPrice * item.quantity)}
+                          </Text>
+                        </View>
+                      ))}
+                      {/* Grand total row */}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 14, backgroundColor: '#f0fdf4' }}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#1e293b' }}>Grand Total</Text>
+                        <Text style={{ fontSize: 16, fontWeight: '800', color: '#10b981' }}>
+                          ₹{fmt(selected.grandTotal ?? selected.totalAmount ?? selected.items.reduce((s: number, i: any) => s + (i.totalPrice ?? i.unitPrice * i.quantity), 0))}
+                        </Text>
+                      </View>
+                    </>
+                  )}
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Delivery Update Popup ── */}
+      <Modal visible={!!deliveryOrder} transparent animationType="fade" onRequestClose={() => setDeliveryOrder(null)}>
+        <View style={styles.stockDetailOverlay}>
+          <View style={[styles.stockDetailModal, { width: isWeb ? 420 : vw - 40 }]}>
+            <View style={styles.stockDetailHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.stockDetailTitle}>Update Delivery Status</Text>
+                <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                  {deliveryOrder?.vendorName} · #{deliveryOrder?.id?.slice(0, 8).toUpperCase()}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setDeliveryOrder(null)} hitSlop={8}
+                style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}>
+                <XCircle size={18} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ padding: 22, gap: 16 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>Select Delivery Type</Text>
+
+              <TouchableOpacity
+                style={[styles.deliveryOption, deliveryType === 'FULL' && styles.deliveryOptionActive]}
+                onPress={() => setDeliveryType('FULL')}
+                activeOpacity={0.85}>
+                <View style={[styles.deliveryRadio, deliveryType === 'FULL' && styles.deliveryRadioActive]}>
+                  {deliveryType === 'FULL' && <View style={styles.deliveryRadioDot} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.deliveryOptionLabel, deliveryType === 'FULL' && { color: '#6366f1' }]}>
+                    Full Delivery
+                  </Text>
+                  <Text style={styles.deliveryOptionDesc}>
+                    All items received in full. Stocks will be updated automatically.
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {deliveryError && (
+                <View style={{ backgroundColor: '#fef2f2', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#fecaca' }}>
+                  <Text style={{ fontSize: 13, color: '#dc2626' }}>{deliveryError}</Text>
+                </View>
+              )}
+
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+                <TouchableOpacity
+                  style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0' }}
+                  onPress={() => setDeliveryOrder(null)}>
+                  <Text style={{ fontSize: 14, color: '#64748b', fontWeight: '600' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.deliveryConfirmBtn, deliveryLoading && { opacity: 0.5 }]}
+                  onPress={handleMarkDelivered}
+                  disabled={deliveryLoading}
+                  activeOpacity={0.85}>
+                  {deliveryLoading
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={styles.deliveryConfirmBtnText}>Mark as Delivered</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+function OrderHistoryView() {
+  const { width: vw } = useWindowDimensions();
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<any | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const getToken = async () =>
+    Platform.OS === 'web'
+      ? localStorage.getItem('accessToken')
+      : AsyncStorage.getItem('accessToken');
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const token = await getToken();
+        const res = await axios.get('http://localhost:8080/api/orders', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const all = Array.isArray(res.data) ? res.data : res.data?.orders ?? [];
+        setOrders(all.filter((o: any) => o.status === 'DELIVERED'));
+      } catch (err: any) {
+        setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load order history');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const openDetail = async (order: any) => {
+    setSelected({ ...order });
+    setDetailLoading(true);
+    try {
+      const token = await getToken();
+      const res = await axios.get(`http://localhost:8080/api/orders/${order.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setSelected(res.data);
+    } catch {
+      setSelected(order);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const fmt = (n: number) =>
+    n?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? '—';
+
+  return (
+    <View style={styles.stocksContainer}>
+      <View style={styles.stocksHeader}>
+        <View>
+          <Text style={styles.stocksTitle}>Order History</Text>
+          <Text style={styles.stocksSubtitle}>All fully delivered orders — stocks updated.</Text>
+        </View>
       </View>
+
+      {loading ? (
+        <View style={styles.usersCenter}><ActivityIndicator size="large" color="#6366f1" /></View>
+      ) : error ? (
+        <View style={styles.usersCenter}><Text style={styles.usersError}>{error}</Text></View>
+      ) : orders.length === 0 ? (
+        <View style={[styles.stocksEmptyBox, { marginTop: 40 }]}>
+          <Package size={40} color="#cbd5e1" />
+          <Text style={styles.stocksEmptyText}>No delivered orders yet</Text>
+          <Text style={{ fontSize: 13, color: '#94a3b8' }}>Orders marked as delivered will appear here.</Text>
+        </View>
+      ) : (
+        <View style={styles.ordersTable}>
+          <View style={styles.ordersTableHeader}>
+            <Text style={[styles.ordersTH, { flex: 2 }]}>Order ID</Text>
+            <Text style={[styles.ordersTH, { flex: 2.5 }]}>Vendor</Text>
+            <Text style={[styles.ordersTH, { flex: 1.5 }]}>Date</Text>
+            <Text style={[styles.ordersTH, { flex: 1.2 }]}>Items</Text>
+            <Text style={[styles.ordersTH, { flex: 1.5, textAlign: 'right' }]}>Total</Text>
+            <Text style={[styles.ordersTH, { flex: 1.5 }]}>Status</Text>
+            <Text style={{ flex: 1 }} />
+          </View>
+          {orders.map((o: any, idx: number) => (
+            <View key={o.id ?? idx} style={[styles.ordersTR, idx % 2 === 1 && styles.ordersTRAlt]}>
+              <Text style={[styles.ordersTDMono, { flex: 2 }]} numberOfLines={1}>
+                {o.id ? `#${o.id.slice(0, 8).toUpperCase()}` : '—'}
+              </Text>
+              <Text style={[styles.ordersTD, { flex: 2.5, fontWeight: '700', color: '#1e293b' }]} numberOfLines={1}>
+                {o.vendorName ?? '—'}
+              </Text>
+              <Text style={[styles.ordersTD, { flex: 1.5 }]}>
+                {o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-IN') : '—'}
+              </Text>
+              <Text style={[styles.ordersTD, { flex: 1.2 }]}>
+                {o.items?.length ?? o.itemCount ?? '—'}
+              </Text>
+              <Text style={[styles.ordersTD, { flex: 1.5, textAlign: 'right', fontWeight: '700', color: '#10b981' }]}>
+                ₹{fmt(o.grandTotal ?? o.totalAmount ?? 0)}
+              </Text>
+              <View style={{ flex: 1.5 }}>
+                <View style={[styles.ordersStatusBadge, { backgroundColor: '#f0fdf4' }]}>
+                  <Text style={[styles.ordersStatusText, { color: '#10b981' }]}>DELIVERED</Text>
+                </View>
+              </View>
+              <TouchableOpacity style={{ flex: 1, alignItems: 'flex-end' }} onPress={() => openDetail(o)} activeOpacity={0.8}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#6366f1' }}>Details</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Detail modal */}
+      <Modal visible={!!selected} transparent animationType="fade" onRequestClose={() => setSelected(null)}>
+        <View style={styles.stockDetailOverlay}>
+          <View style={[styles.stockDetailModal, { width: isWeb ? 640 : vw - 24 }]}>
+            <View style={styles.stockDetailHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.stockDetailTitle}>
+                  {selected?.id ? `Order #${selected.id.slice(0, 8).toUpperCase()}` : 'Order Details'}
+                </Text>
+                <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                  {selected?.vendorName ?? ''}
+                  {selected?.createdAt ? `  ·  ${new Date(selected.createdAt).toLocaleString('en-IN')}` : ''}
+                </Text>
+              </View>
+              <View style={[styles.ordersStatusBadge, { backgroundColor: '#f0fdf4', marginRight: 10 }]}>
+                <Text style={[styles.ordersStatusText, { color: '#10b981' }]}>DELIVERED</Text>
+              </View>
+              <TouchableOpacity onPress={() => setSelected(null)} hitSlop={8}
+                style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}>
+                <XCircle size={18} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: isWeb ? 520 : '80%' }} showsVerticalScrollIndicator={false}>
+              {detailLoading ? (
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color="#6366f1" />
+                </View>
+              ) : (
+                <>
+                  {[
+                    ['Order ID', selected?.id],
+                    ['Vendor', selected?.vendorName],
+                    ['Delivered On', selected?.updatedAt ? new Date(selected.updatedAt).toLocaleString('en-IN') : null],
+                    ['Grand Total', selected?.grandTotal != null ? `₹${fmt(selected.grandTotal)}` : selected?.totalAmount != null ? `₹${fmt(selected.totalAmount)}` : null],
+                  ].filter(([, v]) => v).map(([label, value]) => (
+                    <View key={label as string} style={styles.stockDetailRow}>
+                      <Text style={styles.stockDetailLabel}>{label}</Text>
+                      <Text style={styles.stockDetailValue}>{value as string}</Text>
+                    </View>
+                  ))}
+                  {selected?.items?.length > 0 && (
+                    <>
+                      <View style={styles.ordersDetailSectionTitle}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#6366f1', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                          Items ({selected.items.length})
+                        </Text>
+                      </View>
+                      <View style={styles.ordersItemHeader}>
+                        <Text style={[styles.ordersTH, { flex: 2.5 }]}>Product</Text>
+                        <Text style={[styles.ordersTH, { flex: 1 }]}>Qty</Text>
+                        <Text style={[styles.ordersTH, { flex: 1.2 }]}>Unit Price</Text>
+                        <Text style={[styles.ordersTH, { flex: 1.2, textAlign: 'right' }]}>Total</Text>
+                      </View>
+                      {selected.items.map((item: any, i: number) => (
+                        <View key={item.id ?? i} style={[styles.ordersTR, i % 2 === 1 && styles.ordersTRAlt]}>
+                          <View style={{ flex: 2.5 }}>
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: '#1e293b' }} numberOfLines={1}>{item.productName ?? '—'}</Text>
+                            {item.productCategory && <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{item.productCategory}</Text>}
+                          </View>
+                          <Text style={[styles.ordersTD, { flex: 1 }]}>{item.quantity} {item.unit ?? ''}</Text>
+                          <Text style={[styles.ordersTD, { flex: 1.2 }]}>₹{fmt(item.unitPrice)}</Text>
+                          <Text style={[styles.ordersTD, { flex: 1.2, textAlign: 'right', fontWeight: '700', color: '#10b981' }]}>
+                            ₹{fmt(item.totalPrice ?? item.unitPrice * item.quantity)}
+                          </Text>
+                        </View>
+                      ))}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 14, backgroundColor: '#f0fdf4' }}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#1e293b' }}>Grand Total</Text>
+                        <Text style={{ fontSize: 16, fontWeight: '800', color: '#10b981' }}>
+                          ₹{fmt(selected.grandTotal ?? selected.totalAmount ?? selected.items.reduce((s: number, i: any) => s + (i.totalPrice ?? i.unitPrice * i.quantity), 0))}
+                        </Text>
+                      </View>
+                    </>
+                  )}
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 function StocksView() {
+  const { width: vw } = useWindowDimensions();
   const [stocks, setStocks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1640,7 +2644,7 @@ const styles = StyleSheet.create({
   sidebarHeaderCollapsed: { flexDirection: 'column', alignItems: 'center', gap: 10, paddingHorizontal: 0 },
   brandName: { fontSize: 15, fontWeight: '700', color: '#111827', flex: 1 },
   collapseSidebarBtn: { padding: 4, borderRadius: 6 },
-  navItems: { flex: 1, gap: 2, alignSelf: 'stretch' },
+  navItems: { gap: 2, alignSelf: 'stretch' },
   navItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8, gap: 10 },
   navItemActive: { backgroundColor: '#f3f4f6' },
   navItemCollapsed: { justifyContent: 'center', paddingHorizontal: 0, width: 36, alignSelf: 'center' },
@@ -1664,6 +2668,8 @@ const styles = StyleSheet.create({
 
   // Main content
   mainContent: { flex: 1 },
+  mobileLogoBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
+  mobileLogoBrand: { fontSize: 16, fontWeight: '700', color: '#1e293b', letterSpacing: 0.3 },
   header: { height: 80, backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 32, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 16, flex: 1 },
   menuBtn: { padding: 8, marginLeft: -8 },
@@ -1671,6 +2677,8 @@ const styles = StyleSheet.create({
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 24 },
   searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', paddingHorizontal: 16, height: 44, borderRadius: 12, width: 300, gap: 10 },
   placeholderText: { color: '#94a3b8', fontSize: 14 },
+  darkToggleBtn: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f8fafc', justifyContent: 'center', alignItems: 'center' },
+  darkToggleBtnActive: { backgroundColor: '#1e293b', borderColor: '#334155' },
   notificationBtn: { position: 'relative' },
   badge: { position: 'absolute', top: -2, right: -2, width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444' },
   scrollArea: { padding: 32 },
@@ -1697,7 +2705,7 @@ const styles = StyleSheet.create({
   tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
   cellContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   smallAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#f1f5f9' },
-  cellTextBold: { fontSize: 14, fontWeight: '600', color: '#1e293b' },
+  cellTextBold: { flex: 1, fontSize: 14, fontWeight: '600', color: '#1e293b' },
   cellText: { flex: 1, fontSize: 14, color: '#64748b' },
   statusBadge: { flex: 1, paddingVertical: 4, paddingHorizontal: 12, borderRadius: 8, alignSelf: 'flex-start', alignItems: 'center' },
   statusText: { fontSize: 12, fontWeight: '700' },
@@ -1710,6 +2718,26 @@ const styles = StyleSheet.create({
   notifTitle: { fontSize: 14, color: '#64748b', lineHeight: 20 },
   bold: { fontWeight: '700', color: '#1e293b' },
   notifTime: { fontSize: 12, color: '#94a3b8', marginTop: 4 },
+
+  // Important Notifications card
+  importantNotifCard: { backgroundColor: '#fff', borderRadius: 20, borderWidth: 1.5, borderColor: '#fca5a5', marginBottom: 24, overflow: 'hidden' },
+  importantNotifHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fef2f2', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#fecaca' },
+  importantNotifBadge: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#ef4444', justifyContent: 'center', alignItems: 'center' },
+  importantNotifBadgeText: { color: '#fff', fontWeight: '900', fontSize: 15, lineHeight: 18 },
+  importantNotifTitle: { flex: 1, fontSize: 15, fontWeight: '800', color: '#b91c1c' },
+  importantNotifCount: { backgroundColor: '#ef4444', paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20 },
+  importantNotifCountText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  importantNotifRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#fef2f2' },
+  importantNotifDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444' },
+  importantNotifVendorName: { fontSize: 14, fontWeight: '700', color: '#1e293b' },
+  importantNotifVendorSub: { fontSize: 12, color: '#64748b', marginTop: 2 },
+  importantNotifPendingBadge: { backgroundColor: '#fff7ed', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: '#fed7aa' },
+  importantNotifPendingText: { fontSize: 11, fontWeight: '700', color: '#c2410c' },
+  vendorActionBtns: { flexDirection: 'row', gap: 8 },
+  approveBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#10b981', paddingHorizontal: 13, paddingVertical: 7, borderRadius: 8, minWidth: 90, justifyContent: 'center' },
+  approveBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  rejectBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ef4444', paddingHorizontal: 13, paddingVertical: 7, borderRadius: 8, minWidth: 80, justifyContent: 'center' },
+  rejectBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
   // Employees view
   employeesView: { flex: 1 },
@@ -1799,6 +2827,27 @@ const styles = StyleSheet.create({
   empSearchErrorBox: { backgroundColor: '#fef2f2', borderRadius: 10, padding: 12, marginBottom: 16 },
   empSearchErrorText: { color: '#ef4444', fontSize: 13 },
   empRowId: { fontSize: 11, color: '#94a3b8', marginTop: 2 },
+  empMenuWrapper: {},
+  empMenuBtn: { padding: 6, borderRadius: 8 },
+  empDropdownBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)', justifyContent: 'center', alignItems: 'flex-end', paddingTop: 80, paddingRight: 24 },
+  empDropdownCard: { backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#000', shadowOpacity: 0.14, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 8, minWidth: 150 },
+  empMenuDropdown: {},
+  empMenuItemDanger: { paddingVertical: 12, paddingHorizontal: 16 },
+  empMenuItemDangerText: { fontSize: 14, fontWeight: '600', color: '#ef4444' },
+  empMenuItem: { paddingVertical: 12, paddingHorizontal: 16 },
+  empMenuItemText: { fontSize: 14, fontWeight: '600', color: '#1e293b' },
+  empMenuDivider: { height: 1, backgroundColor: '#f1f5f9', marginHorizontal: 8 },
+  empEditOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  empEditModal: { backgroundColor: '#fff', borderRadius: 18, padding: 24, width: '100%', maxWidth: 480, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
+  empEditHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  empEditTitle: { fontSize: 18, fontWeight: '800', color: '#1e293b' },
+  empEditLabel: { fontSize: 12, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase' },
+  empEditInput: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, color: '#1e293b' },
+  empEditFooter: { flexDirection: 'row', gap: 12, marginTop: 20 },
+  empEditCancelBtn: { flex: 1, paddingVertical: 13, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center' },
+  empEditCancelText: { fontSize: 14, fontWeight: '600', color: '#64748b' },
+  empEditSaveBtn: { flex: 2, paddingVertical: 13, borderRadius: 10, backgroundColor: '#7c3aed', alignItems: 'center' },
+  empEditSaveText: { fontSize: 14, fontWeight: '700', color: '#fff' },
 
   // Vendor view
   vendorContainer: { flex: 1 },
@@ -1846,6 +2895,15 @@ const styles = StyleSheet.create({
   vendorProdTD: { fontSize: 12, color: '#64748b' },
   vendorProdPrice: { fontWeight: '700', color: '#10b981', textAlign: 'right' },
 
+  // Vendor edit form
+  vendorEditLabel: { fontSize: 11, fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 },
+  vendorEditInput: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 9, paddingHorizontal: 13, paddingVertical: 10, fontSize: 14, color: '#1e293b', backgroundColor: '#fafafa' },
+  vendorEditFooter: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
+  vendorEditCancelBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 9, borderWidth: 1, borderColor: '#e2e8f0' },
+  vendorEditCancelText: { fontSize: 14, color: '#64748b', fontWeight: '600' },
+  vendorEditSaveBtn: { backgroundColor: '#6366f1', paddingHorizontal: 22, paddingVertical: 11, borderRadius: 9, minWidth: 130, alignItems: 'center' },
+  vendorEditSaveText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
   // Stocks view
   stocksContainer: { flex: 1 },
   stocksHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
@@ -1876,6 +2934,54 @@ const styles = StyleSheet.create({
   stockDetailValue: { fontSize: 13, color: '#1e293b', fontWeight: '600', textAlign: 'right', flex: 1, marginLeft: 16 },
   quickSubmitBtn: { marginTop: 20, backgroundColor: '#10b981', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
   quickSubmitBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+
+  // Delivery update popup styles
+  updateDeliveryBtn: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#6ee7b7',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  updateDeliveryBtnText: { fontSize: 11, fontWeight: '700', color: '#059669' },
+  deliveryOption: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#fafafa',
+  },
+  deliveryOptionActive: { borderColor: '#6366f1', backgroundColor: '#eef2ff' },
+  deliveryRadio: {
+    width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#cbd5e1',
+    justifyContent: 'center', alignItems: 'center', marginTop: 1,
+  },
+  deliveryRadioActive: { borderColor: '#6366f1' },
+  deliveryRadioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#6366f1' },
+  deliveryOptionLabel: { fontSize: 14, fontWeight: '700', color: '#1e293b', marginBottom: 2 },
+  deliveryOptionDesc: { fontSize: 12, color: '#64748b', lineHeight: 17 },
+  deliveryConfirmBtn: {
+    backgroundColor: '#10b981', paddingHorizontal: 20, paddingVertical: 11,
+    borderRadius: 10, minWidth: 160, alignItems: 'center',
+  },
+  deliveryConfirmBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  // Orders placed view
+  ordersTable: { borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', marginTop: 8 },
+  ordersTableHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', paddingVertical: 11, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
+  ordersTH: { fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 },
+  ordersTR: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', backgroundColor: '#fff' },
+  ordersTRAlt: { backgroundColor: '#fafafa' },
+  ordersTD: { fontSize: 13, color: '#374151', flex: 1 },
+  ordersTDMono: { fontSize: 12, fontFamily: isWeb ? 'monospace' : undefined, color: '#64748b', flex: 1 },
+  ordersStatusBadge: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 20, alignSelf: 'flex-start' },
+  ordersStatusText: { fontSize: 11, fontWeight: '700' },
+  ordersDetailSectionTitle: { paddingHorizontal: 22, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', backgroundColor: '#f8fafc' },
+  ordersItemHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', paddingVertical: 9, paddingHorizontal: 22, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
 
   // Employee ID popup
   empIdOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center' },
